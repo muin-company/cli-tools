@@ -1,0 +1,13 @@
+{
+  "user": {
+    "id": 123,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "createdAt": "2025-02-06T10:30:00Z",
+    "tags": ["developer", "ai"]
+  },
+  "meta": {
+    "page": 1,
+    "total": 100
+  }
+}

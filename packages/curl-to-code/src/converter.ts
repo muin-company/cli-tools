@@ -48,16 +48,22 @@ function parseCurl(curlCommand: string): ParsedCurl {
   // Remove line breaks and extra spaces
   const cleaned = curlCommand.replace(/\\\n/g, ' ').replace(/\s+/g, ' ').trim();
   
-  // Extract URL
-  const urlMatch = cleaned.match(/curl\s+['"]?([^\s'"]+)['"]?/);
-  if (urlMatch) {
-    result.url = urlMatch[1];
-  }
-  
-  // Extract method
-  const methodMatch = cleaned.match(/-X\s+(\w+)/);
+  // Extract method first
+  const methodMatch = cleaned.match(/-X\s+(\w+)/i);
   if (methodMatch) {
     result.method = methodMatch[1].toUpperCase();
+  }
+  
+  // Extract URL - look for http:// or https:// URL
+  const urlMatch = cleaned.match(/https?:\/\/[^\s'"]+/);
+  if (urlMatch) {
+    result.url = urlMatch[0];
+  } else {
+    // Fallback: try to find URL after curl command
+    const fallbackMatch = cleaned.match(/curl\s+(?:-[^\s]+\s+)*['"]?(https?:\/\/[^\s'"]+)['"]?/);
+    if (fallbackMatch) {
+      result.url = fallbackMatch[1];
+    }
   }
   
   // Extract headers
@@ -68,10 +74,18 @@ function parseCurl(curlCommand: string): ParsedCurl {
     result.headers[key.trim()] = values.join(':').trim();
   }
   
-  // Extract body data
-  const dataMatch = cleaned.match(/(?:-d|--data|--data-raw)\s+['"](.+?)['"]/);
-  if (dataMatch) {
-    result.body = dataMatch[1];
+  // Extract body data - handle escaped quotes properly
+  // Match either single-quoted or double-quoted strings
+  const dataSingleMatch = cleaned.match(/(?:-d|--data|--data-raw)\s+'([^']+)'/);
+  const dataDoubleMatch = cleaned.match(/(?:-d|--data|--data-raw)\s+"((?:[^"\\]|\\.)*)"/);
+  
+  if (dataSingleMatch) {
+    result.body = dataSingleMatch[1];
+    if (result.method === 'GET') {
+      result.method = 'POST';
+    }
+  } else if (dataDoubleMatch) {
+    result.body = dataDoubleMatch[1].replace(/\\"/g, '"');
     if (result.method === 'GET') {
       result.method = 'POST';
     }
@@ -342,7 +356,13 @@ function generatePython(parsed: ParsedCurl, options: ConversionOptions): string 
   }
   
   if (body) {
-    lines.push(`${indent}    json=${body},`);
+    // Parse JSON body if possible, otherwise use raw string
+    try {
+      const parsedBody = JSON.parse(body);
+      lines.push(`${indent}    json=${JSON.stringify(parsedBody)},`);
+    } catch {
+      lines.push(`${indent}    data='${body}',`);
+    }
   }
   
   lines.push(`${indent})`);
