@@ -1,13 +1,22 @@
 {
   "name": "@muin/muin-cli-tools",
   "version": "1.0.0",
-  "description": "",
+  "description": "Interactive CLI tools: json-to-types and curl-to-code for developers",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "cli",
+    "developer-tools",
+    "json",
+    "typescript",
+    "curl",
+    "code-generation",
+    "interactive",
+    "monorepo"
+  ],
+  "author": "MUIN <human@muin.company>",
+  "license": "MIT",
   "type": "commonjs"
 }
