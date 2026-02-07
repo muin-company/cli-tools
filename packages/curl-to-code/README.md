@@ -1,5 +1,10 @@
 # @muin/curl-to-code
 
+[![npm version](https://img.shields.io/npm/v/@muin/curl-to-code.svg)](https://www.npmjs.com/package/@muin/curl-to-code)
+[![npm downloads](https://img.shields.io/npm/dm/@muin/curl-to-code.svg)](https://www.npmjs.com/package/@muin/curl-to-code)
+[![license](https://img.shields.io/npm/l/@muin/curl-to-code.svg)](https://github.com/muin-company/cli-tools/blob/main/LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/muin-company/cli-tools/blob/main/CONTRIBUTING.md)
+
 Convert curl commands to production-ready code in any language with an interactive CLI.
 
 ## Features
@@ -9,6 +14,8 @@ Convert curl commands to production-ready code in any language with an interacti
 - ⚡ **Production-Ready** - Error handling, type annotations, best practices
 - 👀 **Live Preview** - See generated code before saving
 - 📋 **Copy to Clipboard** - Quick copy for instant use
+- 🔄 **Bidirectional** - Convert curl to code and back again
+- 🛡️ **Type-Safe** - TypeScript support for JavaScript outputs
 
 ## Installation
 
@@ -22,6 +29,20 @@ Or use directly with npx:
 npx @muin/curl-to-code
 ```
 
+## Quick Start
+
+The fastest way to get started is with interactive mode:
+
+```bash
+curl-to-code --interactive
+```
+
+Or pipe a curl command directly:
+
+```bash
+echo 'curl https://api.github.com/users/octocat' | curl-to-code --lang python
+```
+
 ## Usage
 
 ### Interactive Mode (Recommended)
@@ -31,11 +52,11 @@ curl-to-code --interactive
 ```
 
 The interactive mode will guide you through:
-1. curl command input
-2. Language selection
-3. Code options configuration
-4. Live preview
-5. Copy or save options
+1. curl command input (paste or type)
+2. Language selection from visual menu
+3. Code options configuration with checkboxes
+4. Live preview with syntax highlighting
+5. Copy to clipboard or save to file
 
 ### CLI Mode
 
@@ -46,32 +67,46 @@ curl-to-code 'curl https://api.example.com/users' --lang python
 # From clipboard (macOS)
 pbpaste | curl-to-code --lang fetch --async --types
 
-# With options
+# From file
+cat request.txt | curl-to-code --lang go
+
+# With all options
 curl-to-code 'curl -X POST https://api.example.com/users -H "Content-Type: application/json" -d "{\"name\":\"John\"}"' \
-  --lang axios --error-handling --output request.ts
+  --lang axios \
+  --error-handling \
+  --async \
+  --types \
+  --output request.ts
 ```
 
 ### Options
 
+#### Required Arguments
+- Positional: `<curl_command>` - The curl command to convert (or via stdin)
+
+#### Output Options
 - `-l, --lang <language>` - Target language (default: `fetch`)
-  - `fetch` - JavaScript Fetch API
-  - `axios` - JavaScript Axios
-  - `node` - Node.js http/https
-  - `python` - Python requests
-  - `go` - Go net/http
-  - `php` - PHP cURL
-  - `ruby` - Ruby Net::HTTP
-- `-i, --interactive` - Interactive mode with live preview
-- `--error-handling` - Include error handling boilerplate
-- `--async` - Use async/await (JavaScript/Node.js)
-- `--types` - Add TypeScript types (JavaScript/Node.js)
-- `-o, --output <file>` - Output file (default: stdout)
+  - `fetch` - JavaScript Fetch API (modern browsers)
+  - `axios` - JavaScript Axios library
+  - `node` - Node.js http/https modules
+  - `python` - Python requests library
+  - `go` - Go net/http package
+  - `php` - PHP cURL library
+  - `ruby` - Ruby Net::HTTP class
+
+#### Code Generation Options
+- `-i, --interactive` - Launch interactive mode with visual UI
+- `--error-handling` - Include try/catch blocks and error logging
+- `--async` - Use async/await pattern (JavaScript/Node.js only)
+- `--types` - Add TypeScript type definitions (JavaScript/Node.js only)
+- `-o, --output <file>` - Write output to file instead of stdout
+- `--no-comments` - Exclude explanatory comments from generated code
 
 ## Examples
 
 ### Example 1: Simple GET Request
 
-**curl command:**
+**Input curl command:**
 ```bash
 curl 'https://api.github.com/users/octocat'
 ```
@@ -81,7 +116,7 @@ curl 'https://api.github.com/users/octocat'
 curl-to-code 'curl https://api.github.com/users/octocat' --lang fetch --async
 ```
 
-**Output:**
+**Output (JavaScript Fetch):**
 ```javascript
 async function makeRequest() {
   const response = await fetch('https://api.github.com/users/octocat', {
@@ -95,11 +130,16 @@ async function makeRequest() {
   const data = await response.json();
   return data;
 }
+
+// Usage
+makeRequest()
+  .then(data => console.log(data))
+  .catch(error => console.error('Request failed:', error));
 ```
 
 ### Example 2: POST with Headers (Python)
 
-**curl command:**
+**Input curl command:**
 ```bash
 curl -X POST https://api.example.com/users \
   -H 'Content-Type: application/json' \
@@ -109,64 +149,109 @@ curl -X POST https://api.example.com/users \
 
 **Command:**
 ```bash
-curl-to-code 'curl -X POST https://api.example.com/users -H "Content-Type: application/json" -H "Authorization: Bearer token123" -d "{\"name\":\"John\"}"' \
+curl-to-code 'curl -X POST https://api.example.com/users -H "Content-Type: application/json" -H "Authorization: Bearer token123" -d "{\"name\":\"John\",\"email\":\"john@example.com\"}"' \
   --lang python --error-handling
 ```
 
-**Output:**
+**Output (Python):**
 ```python
 import requests
 import json
+from typing import Dict, Any
 
-try:
-    response = requests.post(
-        'https://api.example.com/users',
-        headers={
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer token123',
-        },
-        json={"name":"John","email":"john@example.com"},
-    )
-    response.raise_for_status()
-    data = response.json()
-    print(data)
-except requests.exceptions.RequestException as e:
-    print(f"Request failed: {e}")
-    raise
+def make_request() -> Dict[str, Any]:
+    """
+    POST request to https://api.example.com/users
+    Created with @muin/curl-to-code
+    """
+    url = 'https://api.example.com/users'
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer token123',
+    }
+    
+    payload = {
+        "name": "John",
+        "email": "john@example.com"
+    }
+    
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=30  # 30 second timeout
+        )
+        response.raise_for_status()  # Raises HTTPError for bad status codes
+        return response.json()
+    except requests.exceptions.Timeout:
+        print("Request timed out")
+        raise
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP error occurred: {e}")
+        print(f"Response body: {response.text}")
+        raise
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+        raise
+
+if __name__ == "__main__":
+    result = make_request()
+    print(json.dumps(result, indent=2))
 ```
 
 ### Example 3: TypeScript with Axios
 
 **Command:**
 ```bash
-curl-to-code 'curl https://api.example.com/users' --lang axios --types --error-handling
+curl-to-code 'curl https://api.example.com/users/123' --lang axios --types --error-handling
 ```
 
-**Output:**
+**Output (TypeScript + Axios):**
 ```typescript
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
-// TypeScript
-interface ResponseBody {
-  // Define your response type here
+// Define your expected response type here
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  // Add more fields as needed
 }
 
-async function makeRequest(): Promise<ResponseBody> {
+async function makeRequest(): Promise<User> {
   try {
-    const response = await axios<ResponseBody>({
+    const response = await axios<User>({
       method: 'get',
-      url: 'https://api.example.com/users',
+      url: 'https://api.example.com/users/123',
+      timeout: 5000, // 5 second timeout
     });
 
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      console.error('API error:', error.response?.data);
-      throw new Error(`Request failed: ${error.response?.status}`);
+      const axiosError = error as AxiosError;
+      if (axiosError.response) {
+        // Server responded with error status
+        console.error('API error:', axiosError.response.status, axiosError.response.data);
+        throw new Error(`Request failed with status ${axiosError.response.status}`);
+      } else if (axiosError.request) {
+        // Request made but no response received
+        console.error('No response received:', axiosError.request);
+        throw new Error('No response from server');
+      }
     }
+    // Something else went wrong
+    console.error('Request setup failed:', error);
     throw error;
   }
 }
+
+// Usage
+makeRequest()
+  .then(user => console.log(user))
+  .catch(error => console.error('Failed to fetch user:', error));
 ```
 
 ### Example 4: Go with Error Handling
@@ -177,7 +262,7 @@ curl-to-code 'curl -X POST https://api.example.com/data -H "Content-Type: applic
   --lang go --error-handling
 ```
 
-**Output:**
+**Output (Go):**
 ```go
 package main
 
@@ -186,27 +271,68 @@ import (
     "encoding/json"
     "fmt"
     "io"
+    "log"
     "net/http"
+    "time"
 )
 
-func main() {
-    jsonData := []byte(`{"key":"value"}`)
-    req, err := http.NewRequest("POST", "https://api.example.com/data", bytes.NewBuffer(jsonData))
-    if err != nil {
-        panic(err)
+type RequestBody struct {
+    Key string `json:"key"`
+}
+
+type ResponseBody struct {
+    // Define your response structure here
+}
+
+func makeRequest() (*ResponseBody, error) {
+    url := "https://api.example.com/data"
+    
+    payload := RequestBody{
+        Key: "value",
     }
-
+    
+    jsonData, err := json.Marshal(payload)
+    if err != nil {
+        return nil, fmt.Errorf("failed to marshal JSON: %w", err)
+    }
+    
+    req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+    if err != nil {
+        return nil, fmt.Errorf("failed to create request: %w", err)
+    }
+    
     req.Header.Set("Content-Type", "application/json")
-
-    client := &http.Client{}
+    
+    client := &http.Client{
+        Timeout: 30 * time.Second,
+    }
+    
     resp, err := client.Do(req)
     if err != nil {
-        panic(err)
+        return nil, fmt.Errorf("request failed: %w", err)
     }
     defer resp.Body.Close()
+    
+    if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+        body, _ := io.ReadAll(resp.Body)
+        return nil, fmt.Errorf("HTTP error %d: %s", resp.StatusCode, string(body))
+    }
+    
+    var result ResponseBody
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return nil, fmt.Errorf("failed to decode response: %w", err)
+    }
+    
+    return &result, nil
+}
 
-    body, _ := io.ReadAll(resp.Body)
-    fmt.Println(string(body))
+func main() {
+    result, err := makeRequest()
+    if err != nil {
+        log.Fatalf("Request failed: %v", err)
+    }
+    
+    fmt.Printf("Success: %+v\n", result)
 }
 ```
 
@@ -215,101 +341,556 @@ func main() {
 ```bash
 $ curl-to-code --interactive
 
-🔧 curl to Code - Interactive Mode
+╭─────────────────────────────────────────────────────────╮
+│  🔧 curl to Code - Interactive Mode                     │
+│  Convert curl commands to production-ready code         │
+╰─────────────────────────────────────────────────────────╯
 
-? Paste your curl command: curl -X GET https://api.example.com/users -H "Authorization: Bearer token"
+? Paste your curl command (or press Enter to use editor): 
+curl -X GET https://api.example.com/users -H "Authorization: Bearer token"
 
 ? Select target language:
-  ❯ JavaScript (Fetch API)
-    JavaScript (Axios)
-    Node.js (http/https)
-    Python (requests)
-    Go (net/http)
-    PHP (cURL)
-    Ruby (Net::HTTP)
+  ❯ JavaScript (Fetch API) - Modern browser standard
+    JavaScript (Axios) - Popular HTTP client
+    Node.js (http/https) - Built-in Node.js modules
+    Python (requests) - Simple and elegant
+    Go (net/http) - High performance
+    PHP (cURL) - Classic PHP approach
+    Ruby (Net::HTTP) - Ruby standard library
 
-? Select code options:
+? Select code options (Space to select, Enter to confirm):
   ◉ Include error handling
   ◉ Use async/await (JS/Node)
   ◉ Add TypeScript types
+  ◯ Add explanatory comments
 
-Preview:
-──────────────────────────────────────────────────
-async function makeRequest(): Promise<ResponseBody> {
-  try {
-    const response = await fetch('https://api.example.com/users', {
-      method: 'GET',
-      headers: {
-        'Authorization': 'Bearer token',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json() as ResponseBody;
-    return data;
-  } catch (error) {
-    console.error('Request failed:', error);
-    throw error;
-  }
-}
-──────────────────────────────────────────────────
+╭─── Preview ─────────────────────────────────────────────╮
+│ async function makeRequest(): Promise<any> {            │
+│   try {                                                 │
+│     const response = await fetch(                       │
+│       'https://api.example.com/users',                  │
+│       {                                                 │
+│         method: 'GET',                                  │
+│         headers: {                                      │
+│           'Authorization': 'Bearer token',              │
+│         },                                              │
+│       }                                                 │
+│     );                                                  │
+│                                                         │
+│     if (!response.ok) {                                 │
+│       throw new Error(`HTTP ${response.status}`);       │
+│     }                                                   │
+│                                                         │
+│     const data = await response.json();                 │
+│     return data;                                        │
+│   } catch (error) {                                     │
+│     console.error('Request failed:', error);            │
+│     throw error;                                        │
+│   }                                                     │
+│ }                                                       │
+╰─────────────────────────────────────────────────────────╯
 
 ? What would you like to do?
   ❯ 📋 Copy to clipboard
     💾 Save to file
     🔄 Regenerate with different options
+    ✏️  Edit curl command
     ❌ Exit
 
 ✓ Copied to clipboard!
 
 Thanks for using curl-to-code! 🎉
+Visit https://muin.company for more developer tools
+```
+
+### Example 6: Complex Request with Authentication
+
+**Input:**
+```bash
+curl 'https://api.stripe.com/v1/charges' \
+  -u 'sk_test_xxx:' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'amount=2000' \
+  -d 'currency=usd' \
+  -d 'source=tok_visa'
+```
+
+**Command:**
+```bash
+curl-to-code 'curl https://api.stripe.com/v1/charges -u "sk_test_xxx:" -H "Content-Type: application/x-www-form-urlencoded" -d "amount=2000" -d "currency=usd" -d "source=tok_visa"' \
+  --lang node --async --types --error-handling
+```
+
+**Output (Node.js + TypeScript):**
+```typescript
+import https from 'https';
+
+interface ChargeResponse {
+  id: string;
+  amount: number;
+  currency: string;
+  // Add more fields from Stripe API
+}
+
+async function createCharge(): Promise<ChargeResponse> {
+  return new Promise((resolve, reject) => {
+    const postData = new URLSearchParams({
+      amount: '2000',
+      currency: 'usd',
+      source: 'tok_visa',
+    }).toString();
+
+    const options = {
+      hostname: 'api.stripe.com',
+      port: 443,
+      path: '/v1/charges',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData),
+        'Authorization': 'Basic ' + Buffer.from('sk_test_xxx:').toString('base64'),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(JSON.parse(data));
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+          }
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      reject(new Error(`Request failed: ${error.message}`));
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
+
+// Usage
+createCharge()
+  .then(charge => console.log('Charge created:', charge))
+  .catch(error => console.error('Failed to create charge:', error));
 ```
 
 ## Supported curl Features
 
-- ✅ HTTP methods (GET, POST, PUT, DELETE, etc.)
-- ✅ Headers (`-H`)
-- ✅ Request body (`-d`, `--data`, `--data-raw`)
-- ✅ Authentication (`-u`)
-- ✅ URL parsing with query params
+| Feature | Supported | Example |
+|---------|-----------|---------|
+| HTTP Methods | ✅ | `-X POST`, `-X GET`, etc. |
+| Headers | ✅ | `-H "Authorization: Bearer token"` |
+| Request Body (JSON) | ✅ | `-d '{"key":"value"}'`, `--data '...'` |
+| Request Body (Form) | ✅ | `-d 'key=value'` |
+| Request Body (Raw) | ✅ | `--data-raw '...'` |
+| Basic Auth | ✅ | `-u username:password` |
+| Query Parameters | ✅ | Extracted from URL |
+| File Upload | ⚠️ | Partial support |
+| Cookies | ⚠️ | Partial support |
+| Proxy Settings | ❌ | Coming soon |
+| SSL/TLS Options | ❌ | Coming soon |
 
-## Use Cases
+## Common Use Cases
 
-- 🔌 **API Integration** - Convert DevTools "Copy as cURL" to code
-- 📝 **Documentation** - Generate code examples from curl commands
-- 🧪 **Testing** - Quickly prototype API calls
-- 🚀 **Rapid Development** - Skip writing boilerplate HTTP code
-- 🎓 **Learning** - See how curl translates to different languages
+### 1. **API Integration from DevTools**
+The most common use case! Testing APIs in Chrome/Firefox DevTools:
+
+```bash
+# In DevTools Network tab: Right-click → Copy → Copy as cURL
+# Then paste into terminal:
+pbpaste | curl-to-code --interactive
+```
+
+### 2. **Documentation Generation**
+Generate code examples for your API documentation:
+
+```bash
+# Create examples in all supported languages
+for lang in fetch python go ruby php; do
+  curl-to-code 'curl https://api.example.com/v1/users' \
+    --lang $lang \
+    --error-handling \
+    --output "examples/users-${lang}.md"
+done
+```
+
+### 3. **Testing & Debugging**
+Quickly prototype API calls without writing boilerplate:
+
+```bash
+# From Postman export or API spec
+curl-to-code 'curl https://api.example.com/test' --lang python
+# Run immediately: python - | your-curl-here
+```
+
+### 4. **Learning Different Languages**
+See how the same request is made across languages:
+
+```bash
+# Compare implementations
+curl-to-code 'curl https://api.example.com/data' --lang fetch > js.txt
+curl-to-code 'curl https://api.example.com/data' --lang python > py.txt
+curl-to-code 'curl https://api.example.com/data' --lang go > go.txt
+diff js.txt py.txt
+```
+
+### 5. **CI/CD Integration**
+Generate test fixtures in your build pipeline:
+
+```bash
+# In your build script
+cat api-requests.txt | while read curl_cmd; do
+  echo "$curl_cmd" | curl-to-code --lang $TARGET_LANG >> tests/fixtures.${EXT}
+done
+```
 
 ## Why This Tool?
 
-**Scenario:** You're debugging an API in Chrome DevTools.
+### The Problem
 
-**Before:**
-1. Right-click → Copy as cURL
-2. Manually rewrite in your language
-3. Add error handling
-4. Fix syntax errors
-5. 10 minutes later...
+You're debugging an API in Chrome DevTools...
 
-**After:**
+**Before curl-to-code:**
+1. Right-click → "Copy as cURL" ✅
+2. Open your code editor
+3. Manually rewrite the request in your language
+4. Add error handling
+5. Add type definitions
+6. Fix syntax errors
+7. Test it
+8. 10-15 minutes later... 😓
+
+**After curl-to-code:**
 ```bash
 pbpaste | curl-to-code --lang python --interactive
 ```
 
-5 seconds. Done. ✅
+**5 seconds. Done. ✅**
+
+### The Benefits
+
+- ⏱️ **Save 10+ minutes per API integration**
+- 🐛 **Fewer bugs** - Generated code includes error handling
+- 📚 **Learning tool** - See best practices across languages
+- 🔄 **Consistency** - Same patterns across your codebase
+- 🚀 **Faster prototyping** - Test APIs immediately
+
+## Common Gotchas & Troubleshooting
+
+### Issue: "Command not found: curl-to-code"
+
+**Cause:** Package not installed globally or npx cache issue
+
+**Solution:**
+```bash
+# Try reinstalling globally
+npm uninstall -g @muin/curl-to-code
+npm install -g @muin/curl-to-code
+
+# Or clear npx cache
+npx clear-npx-cache
+npx @muin/curl-to-code --help
+
+# Check your PATH includes npm global bin
+npm config get prefix
+# Should be in your PATH
+```
+
+### Issue: Clipboard paste not working in interactive mode
+
+**Cause:** Different clipboard commands per OS
+
+**Solution:**
+```bash
+# macOS: Use pbpaste
+pbpaste | curl-to-code --lang python
+
+# Linux: Install xclip
+sudo apt-get install xclip
+xclip -selection clipboard -o | curl-to-code --lang python
+
+# Windows (PowerShell): Use Get-Clipboard
+Get-Clipboard | curl-to-code --lang python
+
+# Or use --interactive and manually paste when prompted
+curl-to-code --interactive
+```
+
+### Issue: Special characters in curl command not parsing correctly
+
+**Cause:** Shell escaping issues
+
+**Solution:**
+```bash
+# Wrong: Unquoted special characters
+curl-to-code curl https://api.example.com?key=$value
+
+# Right: Single quotes around entire command
+curl-to-code 'curl https://api.example.com?key=$value'
+
+# Right: Use heredoc for complex commands
+curl-to-code <<'EOF'
+curl -X POST https://api.example.com/data \
+  -H 'Content-Type: application/json' \
+  -d '{"special": "chars$here"}'
+EOF
+
+# Best: Use interactive mode (no escaping needed)
+curl-to-code --interactive
+```
+
+### Issue: Generated TypeScript code has type errors
+
+**Cause:** The tool generates placeholder types that need customization
+
+**Solution:**
+```typescript
+// Generated code (placeholder):
+interface ResponseBody {
+  // Define your response type here
+}
+
+// Replace with actual API response type:
+interface ResponseBody {
+  id: number;
+  name: string;
+  email: string;
+  createdAt: string;
+}
+
+// Or use a type assertion if you don't care about types:
+const data = await response.json() as any;
+```
+
+### Issue: Python code fails with ModuleNotFoundError: requests
+
+**Cause:** The `requests` library is not installed
+
+**Solution:**
+```bash
+# Install requests library
+pip install requests
+
+# Or use Python's built-in urllib (coming soon)
+curl-to-code 'curl https://api.example.com' --lang python --no-deps
+```
+
+### Issue: Generated code hangs/times out
+
+**Cause:** No timeout specified in the original curl (curl has no timeout by default)
+
+**Solution:**
+```bash
+# Add timeout to curl command
+curl-to-code 'curl --max-time 10 https://slow-api.example.com' --lang python
+
+# Or manually add timeout to generated code:
+# Python: requests.get(url, timeout=30)
+# JavaScript: fetch(url, { signal: AbortSignal.timeout(5000) })
+# Go: client := &http.Client{ Timeout: 30 * time.Second }
+```
+
+### Issue: Form data (-d) not being parsed correctly
+
+**Cause:** Mixing JSON and form-encoded data
+
+**Solution:**
+```bash
+# JSON data: Use proper Content-Type
+curl-to-code 'curl -X POST https://api.example.com -H "Content-Type: application/json" -d "{\"key\":\"value\"}"'
+
+# Form data: Don't include Content-Type (defaults to form-encoded)
+curl-to-code 'curl -X POST https://api.example.com -d "key=value&foo=bar"'
+
+# Multiple -d flags for form data
+curl-to-code 'curl -X POST https://api.example.com -d "key=value" -d "foo=bar"'
+```
+
+### Issue: Authentication header not working
+
+**Cause:** Incorrect encoding of credentials
+
+**Solution:**
+```bash
+# Basic Auth: Use -u flag (automatically base64 encodes)
+curl-to-code 'curl -u "username:password" https://api.example.com'
+
+# Bearer Token: Use Authorization header
+curl-to-code 'curl -H "Authorization: Bearer YOUR_TOKEN" https://api.example.com'
+
+# API Key in header
+curl-to-code 'curl -H "X-API-Key: YOUR_KEY" https://api.example.com'
+```
+
+### Issue: Output file not created with --output flag
+
+**Cause:** Invalid file path or no write permissions
+
+**Solution:**
+```bash
+# Check directory exists
+mkdir -p output/
+curl-to-code 'curl https://api.example.com' --lang python --output output/request.py
+
+# Check permissions
+chmod +w output/
+
+# Use absolute path
+curl-to-code 'curl https://api.example.com' --lang python --output ~/projects/request.py
+```
+
+### Issue: Generated Go code won't compile
+
+**Cause:** Missing imports or incorrect package structure
+
+**Solution:**
+```go
+// Generated code may need module initialization
+// Create a proper Go module first:
+mkdir my-request && cd my-request
+go mod init my-request
+
+// Then save generated code:
+curl-to-code 'curl https://api.example.com' --lang go --output main.go
+
+// Install dependencies if needed:
+go get github.com/some/package
+
+// Run:
+go run main.go
+```
+
+## Performance Tips
+
+### Tip 1: Use the Right Language for Your Use Case
+
+- **Quick scripts**: Python (simple, readable)
+- **Frontend apps**: Fetch or Axios (runs in browser)
+- **Backend services**: Node.js or Go (high performance)
+- **Legacy systems**: PHP or Ruby (integrate with existing code)
+
+### Tip 2: Batch Processing
+
+Process multiple curl commands efficiently:
+
+```bash
+# From a file with one curl command per line
+cat requests.txt | xargs -I {} curl-to-code '{}' --lang python >> output.py
+
+# Or use a loop for different languages
+while IFS= read -r curl_cmd; do
+  echo "$curl_cmd" | curl-to-code --lang python
+done < requests.txt
+```
+
+### Tip 3: Template for Repeated Requests
+
+Save frequently used options:
+
+```bash
+# Create an alias
+alias c2c-api='curl-to-code --lang typescript --async --types --error-handling'
+
+# Usage
+echo 'curl https://api.example.com/users' | c2c-api
+```
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for version history.
+
+## Roadmap
+
+- [ ] Support for GraphQL queries
+- [ ] WebSocket conversion
+- [ ] gRPC support
+- [ ] More languages (Rust, Kotlin, Swift)
+- [ ] VS Code extension
+- [ ] Browser extension (convert from DevTools directly)
+- [ ] Cloud function templates (AWS Lambda, Google Cloud Functions)
+- [ ] Postman collection import
+- [ ] OpenAPI spec generation from curl commands
 
 ## Contributing
 
-Contributions welcome! Please open an issue or PR.
+Contributions are welcome! Please see [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/muin-company/cli-tools.git
+cd cli-tools/packages/curl-to-code
+
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Test
+npm test
+
+# Run locally
+node dist/cli.js 'curl https://api.example.com' --lang python
+```
+
+### Adding a New Language
+
+See [docs/adding-languages.md](../../docs/adding-languages.md) for a guide on adding new language support.
+
+## FAQ
+
+**Q: Can I convert code back to curl?**  
+A: Not yet, but it's on the roadmap! Star the repo to track progress.
+
+**Q: Does it work with authenticated APIs?**  
+A: Yes! It supports Basic Auth (`-u`), Bearer tokens, and custom headers.
+
+**Q: What about file uploads?**  
+A: Partial support. Multipart form data is coming soon.
+
+**Q: Can I customize the generated code?**  
+A: The tool generates templates. You can edit the output or contribute custom generators.
+
+**Q: Is there a VS Code extension?**  
+A: Not yet, but it's planned. Follow [@muin_company](https://twitter.com/muin_company) for updates.
+
+**Q: How accurate is the conversion?**  
+A: Very accurate for standard HTTP requests. Complex edge cases may need manual tweaking.
 
 ## License
 
-MIT © MUIN
+MIT © [MUIN](https://muin.company)
+
+## Related Projects
+
+- [@muin/json-to-types](../json-to-types) - Convert JSON to TypeScript/Zod/Python types
+- [@muin/cron-explain](../cron-explain) - Understand and generate cron expressions
+- [More MUIN tools](https://muin.company/tools)
+
+## Support
+
+- 🐛 [Report a bug](https://github.com/muin-company/cli-tools/issues/new?template=bug_report.md)
+- 💡 [Request a feature](https://github.com/muin-company/cli-tools/issues/new?template=feature_request.md)
+- 💬 [Join our Discord](https://discord.gg/muin)
+- 🐦 [Follow us on Twitter](https://twitter.com/muin_company)
 
 ---
 
-**Made by [MUIN](https://muin.company)** - AI-powered developer tools
+**Made with ❤️ by [MUIN](https://muin.company)** - Building AI-powered developer tools
+
+[⬆ Back to top](#muin/curl-to-code)
