@@ -46,6 +46,72 @@ curl-to-code --interactive
 pbpaste | curl-to-code --lang python
 ```
 
+### [@muin/bundlesize](./packages/bundlesize)
+
+Keep your JavaScript bundles in check with interactive size analysis and tracking.
+
+**Features:**
+- Bundle size analysis and tracking
+- Size limit enforcement with CI integration
+- Historical trends and comparison
+- Treemap visualization
+- Multi-bundle support
+
+**Installation:**
+```bash
+npm install -g @muin/bundlesize
+```
+
+**Usage:**
+```bash
+bundlesize analyze dist/main.js
+bundlesize check dist/main.js --max-size 200kb
+```
+
+### [@muin/envdiff](./packages/envdiff)
+
+Compare environment files, detect missing variables, and ensure configuration consistency.
+
+**Features:**
+- Smart comparison of .env files
+- Missing variable detection
+- Secret detection and validation
+- Multi-environment support
+- Sync and template generation
+
+**Installation:**
+```bash
+npm install -g @muin/envdiff
+```
+
+**Usage:**
+```bash
+envdiff .env.local .env.production
+envdiff check .env --require .env.example
+```
+
+### [@muin/tsconfig-helper](./packages/tsconfig-helper)
+
+Validate, optimize, and understand your TypeScript configuration with intelligent recommendations.
+
+**Features:**
+- Config validation and recommendations
+- Interactive wizard for perfect configs
+- Preset templates for common setups
+- Migration assistant for TypeScript upgrades
+- Strictness level checking
+
+**Installation:**
+```bash
+npm install -g @muin/tsconfig-helper
+```
+
+**Usage:**
+```bash
+tsconfig-helper validate
+tsconfig-helper recommend --project-type react
+```
+
 ### [@muin/readme-gen](./packages/readme-gen)
 
 Generate professional, comprehensive README files from your project.

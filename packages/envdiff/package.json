@@ -1,0 +1,41 @@
+{
+  "name": "@muin/envdiff",
+  "version": "1.0.0",
+  "description": "Compare environment files, detect missing variables, and ensure configuration consistency",
+  "main": "dist/index.js",
+  "bin": {
+    "envdiff": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest"
+  },
+  "keywords": [
+    "env",
+    "dotenv",
+    "environment",
+    "config",
+    "diff",
+    "compare",
+    "validation",
+    "cli"
+  ],
+  "author": "MUIN",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "inquirer": "^9.2.12",
+    "chalk": "^4.1.2",
+    "ora": "^5.4.1",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/inquirer": "^9.0.7",
+    "typescript": "^5.3.2",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.8"
+  }
+}
