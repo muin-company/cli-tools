@@ -1,0 +1,40 @@
+{
+  "name": "@muin/readme-gen",
+  "version": "1.0.0",
+  "description": "Generate professional, comprehensive README files from your project with an interactive CLI",
+  "main": "dist/index.js",
+  "bin": {
+    "readme-gen": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "readme",
+    "generator",
+    "documentation",
+    "cli",
+    "interactive",
+    "markdown",
+    "template",
+    "badges",
+    "npm",
+    "developer-tools"
+  ],
+  "author": "MUIN <human@muin.company>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muin-company/cli-tools.git",
+    "directory": "packages/readme-gen"
+  },
+  "bugs": {
+    "url": "https://github.com/muin-company/cli-tools/issues"
+  },
+  "homepage": "https://github.com/muin-company/cli-tools/tree/main/packages/readme-gen#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

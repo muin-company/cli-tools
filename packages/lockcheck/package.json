@@ -1,0 +1,41 @@
+{
+  "name": "@muin/lockcheck",
+  "version": "1.0.0",
+  "description": "Validate package-lock.json integrity, detect security issues, and ensure lock file consistency with an interactive CLI",
+  "main": "dist/index.js",
+  "bin": {
+    "lockcheck": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "lockfile",
+    "package-lock",
+    "yarn-lock",
+    "pnpm-lock",
+    "validation",
+    "integrity",
+    "security",
+    "npm",
+    "cli",
+    "interactive",
+    "developer-tools"
+  ],
+  "author": "MUIN <human@muin.company>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muin-company/cli-tools.git",
+    "directory": "packages/lockcheck"
+  },
+  "bugs": {
+    "url": "https://github.com/muin-company/cli-tools/issues"
+  },
+  "homepage": "https://github.com/muin-company/cli-tools/tree/main/packages/lockcheck#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

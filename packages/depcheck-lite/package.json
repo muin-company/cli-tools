@@ -1,0 +1,40 @@
+{
+  "name": "@muin/depcheck-lite",
+  "version": "1.0.0",
+  "description": "Lightweight dependency checker - Find unused dependencies, missing dependencies, and outdated packages with an interactive CLI",
+  "main": "dist/index.js",
+  "bin": {
+    "depcheck-lite": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "depcheck",
+    "dependencies",
+    "unused",
+    "missing",
+    "outdated",
+    "npm",
+    "cli",
+    "interactive",
+    "developer-tools",
+    "package-json"
+  ],
+  "author": "MUIN <human@muin.company>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muin-company/cli-tools.git",
+    "directory": "packages/depcheck-lite"
+  },
+  "bugs": {
+    "url": "https://github.com/muin-company/cli-tools/issues"
+  },
+  "homepage": "https://github.com/muin-company/cli-tools/tree/main/packages/depcheck-lite#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
