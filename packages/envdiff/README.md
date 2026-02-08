@@ -888,6 +888,692 @@ Add .env to .gitignore before committing.
 - 📝 **Documentation** - Auto-generated variable documentation
 - 🔄 **Consistency** - Ensure dev/staging/prod parity
 
+## Advanced Workflows
+
+### Workflow 1: Multi-Stage Deployment Pipeline
+
+**Scenario:** Deploy to dev → staging → production with automated validation at each stage.
+
+**Setup:**
+
+```yaml
+# .github/workflows/deploy.yml
+name: Multi-Stage Deployment
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  validate-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Check dev environment
+        run: |
+          npx @muin/envdiff check .env.development \
+            --require .env.example \
+            --strict
+      
+      - name: Detect secrets
+        run: |
+          npx @muin/envdiff secrets .env.development \
+            --fail-on-secrets
+
+  deploy-dev:
+    needs: validate-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to development
+        run: ./deploy.sh dev
+
+  validate-staging:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare dev → staging
+        run: |
+          npx @muin/envdiff compare \
+            .env.development \
+            .env.staging \
+            --keys-only \
+            --strict
+      
+      - name: Ensure staging has all prod requirements
+        run: |
+          npx @muin/envdiff check .env.staging \
+            --require .env.production-requirements.txt \
+            --allow-extra
+
+  deploy-staging:
+    needs: validate-staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to staging
+        run: ./deploy.sh staging
+      
+      - name: Post-deploy validation
+        run: |
+          # Verify deployed env vars match config
+          kubectl get secret app-secrets -o json | \
+            jq -r '.data | map_values(@base64d)' | \
+            npx @muin/envdiff compare .env.staging -
+
+  validate-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Final production checks
+        run: |
+          # All required vars present?
+          npx @muin/envdiff check .env.production \
+            --require .env.example \
+            --strict
+          
+          # No test keys?
+          npx @muin/envdiff validate .env.production \
+            --validate-urls \
+            --validate-ports
+          
+          # No dev-only variables?
+          npx @muin/envdiff compare \
+            .env.production .env.development \
+            --ignore DEBUG,VERBOSE,LOG_LEVEL
+      
+      - name: Require manual approval
+        uses: trstringer/manual-approval@v1
+        with:
+          approvers: infra-team
+
+  deploy-production:
+    needs: validate-production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to production
+        run: ./deploy.sh production
+```
+
+**Benefits:**
+- ✅ Automatic validation at each stage
+- ✅ Prevents bad configs from reaching production
+- ✅ Catches missing variables early
+- ✅ Manual approval gate before production
+
+---
+
+### Workflow 2: Secrets Rotation Automation
+
+**Scenario:** Quarterly secrets rotation with automated tracking and validation.
+
+**Setup:**
+
+```bash
+#!/bin/bash
+# scripts/rotate-secrets.sh
+
+set -e
+
+# 1. Backup current secrets
+envdiff generate .env.production \
+  --output .env.production.backup.$(date +%Y%m%d) \
+  --show-values
+
+# 2. Detect secrets that need rotation
+SECRETS=$(envdiff secrets .env.production --format json | \
+  jq -r '.secrets[] | select(.risk == "HIGH") | .variable')
+
+echo "🔄 Rotating secrets: $SECRETS"
+
+# 3. Generate new secrets
+for VAR in $SECRETS; do
+  case $VAR in
+    *_KEY|*_SECRET)
+      NEW_VALUE=$(openssl rand -hex 32)
+      ;;
+    JWT_SECRET)
+      NEW_VALUE=$(openssl rand -base64 64)
+      ;;
+    DATABASE_PASSWORD)
+      NEW_VALUE=$(pwgen -s 32 1)
+      ;;
+    *)
+      echo "⚠️  Unknown secret type: $VAR (manual rotation required)"
+      continue
+      ;;
+  esac
+  
+  # Update in secret manager
+  aws secretsmanager update-secret \
+    --secret-id "prod/$VAR" \
+    --secret-string "$NEW_VALUE"
+  
+  # Update local file for validation
+  sed -i.bak "s/^${VAR}=.*/${VAR}=${NEW_VALUE}/" .env.production.new
+done
+
+# 4. Validate new configuration
+envdiff validate .env.production.new \
+  --validate-urls \
+  --validate-ports
+
+# 5. Compare old vs new
+envdiff compare .env.production .env.production.new \
+  --keys-only
+
+# 6. Test in staging first
+kubectl create secret generic app-secrets \
+  --from-env-file=.env.production.new \
+  --dry-run=client -o yaml | \
+  kubectl apply -f - -n staging
+
+# Wait for health checks
+sleep 30
+
+# 7. If staging OK, deploy to production
+if curl -f https://staging.example.com/health; then
+  kubectl create secret generic app-secrets \
+    --from-env-file=.env.production.new \
+    --dry-run=client -o yaml | \
+    kubectl apply -f - -n production
+  
+  kubectl rollout restart deployment/app -n production
+  
+  echo "✅ Secrets rotated successfully"
+  
+  # 8. Notify team
+  envdiff compare .env.production .env.production.new --format markdown | \
+    curl -X POST https://slack.com/api/chat.postMessage \
+      -H "Authorization: Bearer $SLACK_TOKEN" \
+      -d "channel=#ops" \
+      -d "text=🔐 Production secrets rotated" \
+      --data-urlencode "blocks=$(cat)"
+else
+  echo "❌ Staging health check failed, rollback"
+  exit 1
+fi
+
+# 9. Track rotation date
+echo "LAST_ROTATION_DATE=$(date +%Y-%m-%d)" >> .env.production.meta
+```
+
+**Cron schedule:**
+```bash
+# Run quarterly
+0 2 1 */3 * /path/to/rotate-secrets.sh
+```
+
+---
+
+### Workflow 3: Environment Variable Documentation Generator
+
+**Scenario:** Auto-generate and keep documentation in sync with actual environment files.
+
+**Setup:**
+
+```bash
+#!/bin/bash
+# scripts/generate-env-docs.sh
+
+# Generate comprehensive documentation
+cat > docs/ENVIRONMENT_VARIABLES.md << 'EOF'
+# Environment Variables
+
+_Auto-generated on $(date +%Y-%m-%d) from actual environment files_
+
+## Quick Reference
+
+| Variable | Dev | Staging | Prod | Required | Type |
+|----------|-----|---------|------|----------|------|
+EOF
+
+# Extract all unique variables
+ALL_VARS=$(cat .env.* | grep -v '^#' | grep '=' | cut -d'=' -f1 | sort -u)
+
+for VAR in $ALL_VARS; do
+  # Check presence in each environment
+  IN_DEV=$(grep -q "^${VAR}=" .env.development && echo "✅" || echo "❌")
+  IN_STAGING=$(grep -q "^${VAR}=" .env.staging && echo "✅" || echo "❌")
+  IN_PROD=$(grep -q "^${VAR}=" .env.production && echo "✅" || echo "❌")
+  
+  # Check if required
+  REQUIRED=$(grep -q "^${VAR}=" .env.example && echo "Yes" || echo "No")
+  
+  # Infer type
+  VALUE=$(grep "^${VAR}=" .env.development | cut -d'=' -f2-)
+  if [[ $VALUE =~ ^https?:// ]]; then
+    TYPE="URL"
+  elif [[ $VALUE =~ ^[0-9]+$ ]]; then
+    TYPE="Number"
+  elif [[ $VALUE =~ ^(true|false)$ ]]; then
+    TYPE="Boolean"
+  elif [[ $VALUE =~ (secret|key|token|password) ]]; then
+    TYPE="Secret"
+  else
+    TYPE="String"
+  fi
+  
+  echo "| $VAR | $IN_DEV | $IN_STAGING | $IN_PROD | $REQUIRED | $TYPE |" >> docs/ENVIRONMENT_VARIABLES.md
+done
+
+# Add detailed sections
+cat >> docs/ENVIRONMENT_VARIABLES.md << 'EOF'
+
+## Detailed Configuration
+
+### Authentication & Security
+EOF
+
+# Group variables by category
+for CATEGORY in "AUTH" "DATABASE" "API" "CACHE" "EMAIL" "MONITORING"; do
+  echo "### $CATEGORY Variables" >> docs/ENVIRONMENT_VARIABLES.md
+  
+  grep -h "^${CATEGORY}_" .env.* | cut -d'=' -f1 | sort -u | while read VAR; do
+    # Get comments from .env.example
+    COMMENT=$(grep -B1 "^${VAR}=" .env.example | head -1 | sed 's/^# //')
+    
+    echo "" >> docs/ENVIRONMENT_VARIABLES.md
+    echo "#### \`$VAR\`" >> docs/ENVIRONMENT_VARIABLES.md
+    echo "$COMMENT" >> docs/ENVIRONMENT_VARIABLES.md
+    echo "" >> docs/ENVIRONMENT_VARIABLES.md
+    
+    # Add examples
+    echo "**Examples:**" >> docs/ENVIRONMENT_VARIABLES.md
+    grep "^${VAR}=" .env.development | sed 's/^/- Development: `/' | sed 's/$/`/' >> docs/ENVIRONMENT_VARIABLES.md
+  done
+done
+
+# Add validation report
+cat >> docs/ENVIRONMENT_VARIABLES.md << 'EOF'
+
+## Validation Report
+
+EOF
+
+envdiff compare .env.development .env.staging .env.production \
+  --format markdown >> docs/ENVIRONMENT_VARIABLES.md
+
+# Generate visual diff diagram
+echo "" >> docs/ENVIRONMENT_VARIABLES.md
+echo "## Environment Comparison Diagram" >> docs/ENVIRONMENT_VARIABLES.md
+echo "" >> docs/ENVIRONMENT_VARIABLES.md
+echo '```mermaid' >> docs/ENVIRONMENT_VARIABLES.md
+echo 'graph LR' >> docs/ENVIRONMENT_VARIABLES.md
+echo '  DEV[Development<br/>$(grep -c "=" .env.development) vars]' >> docs/ENVIRONMENT_VARIABLES.md
+echo '  STAGING[Staging<br/>$(grep -c "=" .env.staging) vars]' >> docs/ENVIRONMENT_VARIABLES.md
+echo '  PROD[Production<br/>$(grep -c "=" .env.production) vars]' >> docs/ENVIRONMENT_VARIABLES.md
+echo '  DEV --> STAGING' >> docs/ENVIRONMENT_VARIABLES.md
+echo '  STAGING --> PROD' >> docs/ENVIRONMENT_VARIABLES.md
+echo '```' >> docs/ENVIRONMENT_VARIABLES.md
+
+echo "✅ Documentation generated: docs/ENVIRONMENT_VARIABLES.md"
+
+# Commit if changes detected
+if git diff --quiet docs/ENVIRONMENT_VARIABLES.md; then
+  echo "📄 No changes to documentation"
+else
+  git add docs/ENVIRONMENT_VARIABLES.md
+  git commit -m "docs: Update environment variables documentation [skip ci]"
+  git push
+  echo "📤 Documentation updated and pushed"
+fi
+```
+
+**Git hook** (`.git/hooks/post-merge`):
+```bash
+#!/bin/bash
+# Auto-regenerate docs when env files change
+if git diff --name-only HEAD@{1} HEAD | grep -q '\.env'; then
+  ./scripts/generate-env-docs.sh
+fi
+```
+
+---
+
+### Workflow 4: Cross-Team Environment Sync
+
+**Scenario:** Multiple teams (backend, frontend, mobile) share common environment variables but have team-specific ones.
+
+**Setup:**
+
+```bash
+# Environment structure
+.env/
+├── shared.env          # Common variables (DB, API endpoints)
+├── backend.env         # Backend-specific (Redis, workers)
+├── frontend.env        # Frontend-specific (CDN, analytics)
+└── mobile.env          # Mobile-specific (app store keys)
+
+# Validation script
+#!/bin/bash
+# scripts/validate-team-envs.sh
+
+# 1. Ensure all teams have shared variables
+for TEAM in backend frontend mobile; do
+  echo "🔍 Checking $TEAM environment..."
+  
+  envdiff check .env/${TEAM}.env \
+    --require .env/shared.env \
+    --allow-extra \
+    || exit 1
+done
+
+# 2. Ensure no conflicts in shared variables
+envdiff compare \
+  .env/backend.env \
+  .env/frontend.env \
+  .env/mobile.env \
+  --keys-only \
+  --show-conflicts
+
+# 3. Detect team-specific variables bleeding into shared
+BACKEND_ONLY="REDIS_URL,WORKER_CONCURRENCY,QUEUE_NAME"
+FRONTEND_ONLY="CDN_URL,GA_TRACKING_ID,SENTRY_DSN_FRONTEND"
+MOBILE_ONLY="IOS_APP_ID,ANDROID_PACKAGE,CODEPUSH_KEY"
+
+envdiff validate .env/shared.env --ignore $BACKEND_ONLY,$FRONTEND_ONLY,$MOBILE_ONLY
+
+# 4. Generate team-specific .env.example files
+for TEAM in backend frontend mobile; do
+  envdiff generate .env/${TEAM}.env \
+    --output .env.example.${TEAM} \
+    --mask-values \
+    --include-shared .env/shared.env
+done
+
+echo "✅ All team environments validated"
+```
+
+**Pre-commit hook:**
+```bash
+#!/bin/bash
+# .husky/pre-commit
+
+# Validate before committing env changes
+if git diff --cached --name-only | grep -q '.env/'; then
+  echo "🔍 Validating environment changes..."
+  ./scripts/validate-team-envs.sh || {
+    echo "❌ Environment validation failed"
+    echo "💡 Run: ./scripts/validate-team-envs.sh"
+    exit 1
+  }
+fi
+```
+
+---
+
+### Workflow 5: Dynamic Environment Configuration
+
+**Scenario:** Generate environment-specific configs from templates + secrets.
+
+**Setup:**
+
+```bash
+#!/bin/bash
+# scripts/build-env.sh
+# Usage: ./build-env.sh <environment> <region>
+
+ENV=$1
+REGION=$2
+
+if [[ -z "$ENV" || -z "$REGION" ]]; then
+  echo "Usage: $0 <dev|staging|prod> <us|eu|asia>"
+  exit 1
+fi
+
+# 1. Start with base template
+cp .env.template .env.${ENV}.${REGION}
+
+# 2. Apply environment-specific overrides
+envdiff sync \
+  .env.template \
+  .env.${ENV}.${REGION} \
+  --merge \
+  --source .env.overrides.${ENV}
+
+# 3. Apply region-specific settings
+case $REGION in
+  us)
+    DATABASE_REGION=us-east-1
+    CDN_ENDPOINT=https://cdn-us.example.com
+    ;;
+  eu)
+    DATABASE_REGION=eu-west-1
+    CDN_ENDPOINT=https://cdn-eu.example.com
+    ;;
+  asia)
+    DATABASE_REGION=ap-southeast-1
+    CDN_ENDPOINT=https://cdn-asia.example.com
+    ;;
+esac
+
+sed -i "s|{{DATABASE_REGION}}|${DATABASE_REGION}|g" .env.${ENV}.${REGION}
+sed -i "s|{{CDN_ENDPOINT}}|${CDN_ENDPOINT}|g" .env.${ENV}.${REGION}
+
+# 4. Inject secrets from vault
+vault kv get -format=json secret/${ENV}/${REGION} | \
+  jq -r '.data.data | to_entries | .[] | "\(.key)=\(.value)"' | \
+  while IFS='=' read -r KEY VALUE; do
+    sed -i "s|{{${KEY}}}|${VALUE}|g" .env.${ENV}.${REGION}
+  done
+
+# 5. Validate final configuration
+envdiff validate .env.${ENV}.${REGION} \
+  --validate-urls \
+  --validate-ports \
+  --check-placeholders
+
+# 6. Verify no secrets are exposed
+envdiff secrets .env.${ENV}.${REGION} --fail-on-secrets
+
+echo "✅ Environment configuration built: .env.${ENV}.${REGION}"
+
+# 7. Generate deployment manifest
+envdiff export .env.${ENV}.${REGION} \
+  --format kubernetes \
+  --output k8s/secrets-${ENV}-${REGION}.yaml
+```
+
+**Makefile:**
+```makefile
+.PHONY: deploy-all
+
+deploy-all:
+	@for env in dev staging prod; do \
+		for region in us eu asia; do \
+			echo "🚀 Deploying $$env to $$region..."; \
+			./scripts/build-env.sh $$env $$region; \
+			kubectl apply -f k8s/secrets-$$env-$$region.yaml -n $$env-$$region; \
+		done \
+	done
+```
+
+---
+
+### Workflow 6: Environment Drift Detection
+
+**Scenario:** Continuously monitor for configuration drift between running services and source control.
+
+**Setup:**
+
+```bash
+#!/bin/bash
+# scripts/detect-drift.sh
+
+# 1. Fetch current environment from running services
+fetch_live_env() {
+  local ENV=$1
+  local NAMESPACE=$2
+  
+  kubectl get secret app-secrets -n $NAMESPACE -o json | \
+    jq -r '.data | map_values(@base64d) | to_entries | .[] | "\(.key)=\(.value)"' \
+    > .env.${ENV}.live
+}
+
+# 2. Compare with source control
+check_drift() {
+  local ENV=$1
+  
+  envdiff compare .env.${ENV} .env.${ENV}.live \
+    --format json > drift-report-${ENV}.json
+  
+  DIFF_COUNT=$(jq '.differences | length' drift-report-${ENV}.json)
+  
+  if [ "$DIFF_COUNT" -gt 0 ]; then
+    echo "⚠️  Drift detected in $ENV: $DIFF_COUNT differences"
+    
+    # Generate detailed report
+    envdiff compare .env.${ENV} .env.${ENV}.live \
+      --format markdown > drift-report-${ENV}.md
+    
+    # Alert team
+    curl -X POST $SLACK_WEBHOOK_URL \
+      -H 'Content-Type: application/json' \
+      -d "{
+        \"text\": \"🚨 Configuration drift detected in ${ENV}\",
+        \"attachments\": [{
+          \"color\": \"danger\",
+          \"text\": \"${DIFF_COUNT} variables differ from source control\",
+          \"fields\": [
+            {\"title\": \"Environment\", \"value\": \"${ENV}\", \"short\": true},
+            {\"title\": \"Differences\", \"value\": \"${DIFF_COUNT}\", \"short\": true}
+          ]
+        }]
+      }"
+    
+    # Create GitHub issue
+    gh issue create \
+      --title "⚠️  Configuration drift in ${ENV}" \
+      --body "$(cat drift-report-${ENV}.md)" \
+      --label "ops,drift,${ENV}"
+    
+    return 1
+  else
+    echo "✅ No drift detected in $ENV"
+    return 0
+  fi
+}
+
+# 3. Check all environments
+DRIFT_DETECTED=0
+
+for ENV in dev staging production; do
+  echo "🔍 Checking $ENV..."
+  fetch_live_env $ENV $ENV-namespace
+  check_drift $ENV || DRIFT_DETECTED=1
+done
+
+if [ $DRIFT_DETECTED -eq 1 ]; then
+  echo "❌ Drift detected in one or more environments"
+  exit 1
+else
+  echo "✅ All environments in sync"
+fi
+```
+
+**Cron schedule:**
+```bash
+# Check for drift every 6 hours
+0 */6 * * * /path/to/detect-drift.sh
+```
+
+---
+
+### Workflow 7: Environment Variable Compliance Checking
+
+**Scenario:** Ensure all environment variables comply with organizational standards (naming conventions, required metadata, security policies).
+
+**Setup:**
+
+```bash
+#!/bin/bash
+# scripts/compliance-check.sh
+
+# 1. Define compliance rules
+cat > .envdiff-rules.json << 'EOF'
+{
+  "naming": {
+    "pattern": "^[A-Z][A-Z0-9_]*$",
+    "message": "Variable names must be UPPER_SNAKE_CASE"
+  },
+  "secrets": {
+    "suffixes": ["KEY", "SECRET", "TOKEN", "PASSWORD", "CREDENTIALS"],
+    "must_be_in_vault": true
+  },
+  "required_prefixes": {
+    "database": "DB_",
+    "cache": "CACHE_",
+    "api": "API_"
+  },
+  "forbidden_patterns": [
+    "localhost",
+    "127.0.0.1",
+    "admin",
+    "password123"
+  ],
+  "url_requirements": {
+    "production": {
+      "must_use_https": true,
+      "no_ip_addresses": true
+    }
+  }
+}
+EOF
+
+# 2. Run compliance checks
+echo "🔍 Running compliance checks..."
+
+# Check naming conventions
+envdiff validate .env.production \
+  --check-naming \
+  --naming-pattern "^[A-Z][A-Z0-9_]*$"
+
+# Check for secrets in plaintext
+SECRETS=$(envdiff secrets .env.production --format json | \
+  jq -r '.secrets[] | select(.risk == "HIGH") | .variable')
+
+if [ -n "$SECRETS" ]; then
+  echo "❌ High-risk secrets found in plaintext:"
+  echo "$SECRETS"
+  echo "💡 Move these to AWS Secrets Manager / HashiCorp Vault"
+  exit 1
+fi
+
+# Check for forbidden patterns
+FORBIDDEN="localhost|127.0.0.1|admin|password123|test|example"
+if grep -Ei "$FORBIDDEN" .env.production; then
+  echo "❌ Forbidden patterns detected in production environment"
+  exit 1
+fi
+
+# Check production URLs use HTTPS
+HTTP_URLS=$(grep "_URL=" .env.production | grep "http://" || true)
+if [ -n "$HTTP_URLS" ]; then
+  echo "❌ Production URLs must use HTTPS:"
+  echo "$HTTP_URLS"
+  exit 1
+fi
+
+# Check for IP addresses (should use DNS names)
+IP_PATTERN="[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}"
+if grep -E "$IP_PATTERN" .env.production; then
+  echo "⚠️  Warning: IP addresses found (use DNS names in production)"
+fi
+
+# Check required metadata
+REQUIRED_VARS="APP_NAME APP_ENV DEPLOY_DATE DEPLOY_VERSION"
+for VAR in $REQUIRED_VARS; do
+  if ! grep -q "^${VAR}=" .env.production; then
+    echo "❌ Required metadata missing: $VAR"
+    exit 1
+  fi
+done
+
+echo "✅ All compliance checks passed"
+```
+
+---
+
 ## Common Gotchas & Troubleshooting
 
 ### Issue: "Cannot parse .env file"
