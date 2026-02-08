@@ -887,6 +887,300 @@ interface APIUserModel { ... }
 json-to-types data.json --naming pascal
 ```
 
+## Real-World Workflows
+
+### Workflow 1: API-First Development
+
+Keep your types in sync with evolving APIs:
+
+```bash
+#!/bin/bash
+# scripts/sync-api-types.sh - Run this before every build
+
+API_BASE="https://api.example.com"
+TYPES_DIR="src/types/api"
+
+# Fetch latest API responses
+curl "$API_BASE/users/1" > /tmp/user.json
+curl "$API_BASE/posts?limit=1" > /tmp/posts.json
+curl "$API_BASE/auth/session" > /tmp/session.json
+
+# Generate types
+json-to-types /tmp/user.json --type zod --output "$TYPES_DIR/user.ts"
+json-to-types /tmp/posts.json --type zod --output "$TYPES_DIR/post.ts"
+json-to-types /tmp/session.json --type zod --output "$TYPES_DIR/auth.ts"
+
+# Validate against existing types (fail build if breaking changes)
+npm run type-check || {
+  echo "⚠️  API types changed! Review $TYPES_DIR"
+  git diff --no-index "$TYPES_DIR"
+  exit 1
+}
+```
+
+**Why this works:**
+- Catches API changes before they break production
+- Types are always up-to-date with real API responses
+- Automated in CI/CD pipeline
+- Git diff shows exactly what changed
+
+### Workflow 2: Type-Safe SDK Generation
+
+Build a complete type-safe API client:
+
+```bash
+# 1. Collect all endpoint responses
+mkdir -p .api-samples
+curl https://api.stripe.com/v1/customers | jq '.[0]' > .api-samples/customer.json
+curl https://api.stripe.com/v1/charges | jq '.[0]' > .api-samples/charge.json
+curl https://api.stripe.com/v1/subscriptions | jq '.[0]' > .api-samples/subscription.json
+
+# 2. Generate Zod schemas for runtime validation
+for file in .api-samples/*.json; do
+  name=$(basename "$file" .json)
+  json-to-types "$file" --type zod --output "src/schemas/${name}.ts"
+done
+
+# 3. Create typed API client wrapper
+cat > src/api-client.ts << 'EOF'
+import { customerSchema, chargeSchema, subscriptionSchema } from './schemas';
+
+export class StripeClient {
+  async getCustomer(id: string) {
+    const response = await fetch(`/customers/${id}`);
+    const data = await response.json();
+    return customerSchema.parse(data); // Runtime validation + types!
+  }
+  
+  async createCharge(amount: number) {
+    const response = await fetch('/charges', {
+      method: 'POST',
+      body: JSON.stringify({ amount })
+    });
+    return chargeSchema.parse(await response.json());
+  }
+}
+EOF
+```
+
+**Benefits:**
+- Type safety at compile time (TypeScript)
+- Validation at runtime (Zod)
+- Single source of truth (API responses)
+- Catches API contract violations immediately
+
+### Workflow 3: Monorepo Type Sharing
+
+Share types across frontend/backend in a monorepo:
+
+```bash
+# Project structure:
+# packages/
+#   types/         <- Shared type definitions
+#   api/           <- Backend (Node.js)
+#   web/           <- Frontend (React)
+#   mobile/        <- Mobile (React Native)
+
+# Step 1: Generate types in shared package
+cd packages/types
+curl https://api.yourapp.com/schema | \
+  json-to-types --type ts-interface --output src/api.ts
+
+# Step 2: Export from types package
+cat > src/index.ts << 'EOF'
+export * from './api';
+export * from './models';
+export * from './validation';
+EOF
+
+# Step 3: Use in other packages
+# packages/web/package.json
+{
+  "dependencies": {
+    "@yourapp/types": "workspace:*"
+  }
+}
+
+# packages/web/src/api.ts
+import { User, Post } from '@yourapp/types';
+
+async function fetchUser(id: string): Promise<User> {
+  const response = await fetch(`/users/${id}`);
+  return response.json(); // TypeScript knows this is User!
+}
+```
+
+**Why this matters:**
+- No type duplication across packages
+- One API change updates all consumers
+- Refactoring is safe and automatic
+- Frontend and backend always in sync
+
+## Advanced Tips & Tricks
+
+### Tip 1: Progressive Type Refinement
+
+Start loose, tighten over time:
+
+```typescript
+// Week 1: Quick start with any
+const data = await response.json() as any;
+
+// Week 2: Generate basic types
+json-to-types sample.json --output types.ts
+import { ApiResponse } from './types';
+const data = await response.json() as ApiResponse;
+
+// Week 3: Add runtime validation
+json-to-types sample.json --type zod --output schemas.ts
+import { apiResponseSchema } from './schemas';
+const data = apiResponseSchema.parse(await response.json());
+
+// Week 4: Optional fields for partial data
+json-to-types sample.json --type zod --optional --output schemas-partial.ts
+const updates = partialSchema.parse(formData);
+```
+
+### Tip 2: Type Versioning for API Evolution
+
+Handle multiple API versions gracefully:
+
+```bash
+# Generate types for each API version
+json-to-types v1-response.json --prefix V1 --output types/v1.ts
+json-to-types v2-response.json --prefix V2 --output types/v2.ts
+json-to-types v3-response.json --prefix V3 --output types/v3.ts
+```
+
+```typescript
+import { V1User, V2User, V3User } from './types';
+
+function migrateUser(data: V1User): V3User {
+  // Explicit migration logic
+  return {
+    id: data.id,
+    fullName: `${data.firstName} ${data.lastName}`, // V1 -> V3
+    email: data.email,
+    roles: data.role ? [data.role] : [], // V2 changed role to roles array
+  };
+}
+```
+
+### Tip 3: Combine Multiple Samples for Better Types
+
+When your API returns different shapes:
+
+```bash
+# Collect multiple samples
+curl /api/users/123 > user-admin.json      # Admin user
+curl /api/users/456 > user-regular.json    # Regular user
+curl /api/users/789 > user-guest.json      # Guest user
+
+# Merge them (they'll create a union type)
+jq -s '.' user-*.json | json-to-types --type zod
+
+# Result: Captures all possible fields
+const userSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  email: z.string(),
+  role: z.enum(['admin', 'user', 'guest']),     // Inferred from samples
+  permissions: z.array(z.string()).optional(),  // Only in admin
+  invitedBy: z.number().optional(),             // Only in guest
+});
+```
+
+### Tip 4: Git Hooks for Automatic Type Updates
+
+Never forget to update types:
+
+```bash
+# .husky/pre-commit
+#!/bin/sh
+
+# Auto-generate types from API schemas before commit
+if git diff --cached --name-only | grep -q "api-schema.json"; then
+  echo "📝 Regenerating types from API schema..."
+  json-to-types api-schema.json --output src/types/api.ts
+  git add src/types/api.ts
+  echo "✅ Types updated"
+fi
+```
+
+### Tip 5: Watch Mode for Live Development
+
+Auto-regenerate types during development:
+
+```bash
+# Install fswatch (macOS) or inotify-tools (Linux)
+# macOS:
+brew install fswatch
+
+# Watch for JSON changes and regenerate
+fswatch -o api-samples/*.json | while read; do
+  echo "🔄 Regenerating types..."
+  for file in api-samples/*.json; do
+    name=$(basename "$file" .json)
+    json-to-types "$file" --output "src/types/${name}.ts"
+  done
+  echo "✅ Types updated at $(date)"
+done
+```
+
+### Tip 6: Type Testing Strategy
+
+Test your types like you test your code:
+
+```typescript
+// types.test.ts - Validate generated types work correctly
+import { describe, it, expect } from 'vitest';
+import { userSchema } from './schemas/user';
+
+describe('User Schema', () => {
+  it('accepts valid user data', () => {
+    const validUser = {
+      id: 1,
+      name: "John Doe",
+      email: "john@example.com"
+    };
+    expect(() => userSchema.parse(validUser)).not.toThrow();
+  });
+
+  it('rejects invalid email', () => {
+    const invalidUser = {
+      id: 1,
+      name: "John Doe",
+      email: "not-an-email"
+    };
+    expect(() => userSchema.parse(invalidUser)).toThrow();
+  });
+
+  it('handles optional fields', () => {
+    const minimalUser = {
+      id: 1,
+      name: "John Doe"
+    };
+    // Should this pass or fail? Test your assumptions!
+    expect(() => userSchema.parse(minimalUser)).not.toThrow();
+  });
+});
+```
+
+### Tip 7: Documentation Generation from Types
+
+Turn your types into API docs:
+
+```bash
+# Generate types with comments
+json-to-types api-response.json --type ts-interface --output api.ts
+
+# Use TypeDoc to generate HTML docs
+npx typedoc src/types --out docs/api
+
+# Or use ts-json-schema-generator for OpenAPI
+npx ts-json-schema-generator --path src/types/api.ts --type User > openapi-schema.json
+```
+
 ## Performance Tips
 
 ### Tip 1: Use the Right Output Format
@@ -935,6 +1229,25 @@ curl https://api.example.com/data | j2z
 
 # Vim: Add to .vimrc
 command! J2T !json-to-types % --output %:r.ts
+```
+
+### Tip 8: Lazy Loading Large Type Files
+
+For huge API schemas, split and lazy-load:
+
+```typescript
+// Instead of importing everything:
+// import { User, Post, Comment, ... } from './types'; // 50+ types
+
+// Split into separate files and lazy import:
+export type User = typeof import('./types/user').User;
+export type Post = typeof import('./types/post').Post;
+
+// Or use dynamic imports:
+async function validateUser(data: unknown) {
+  const { userSchema } = await import('./schemas/user');
+  return userSchema.parse(data);
+}
 ```
 
 ## Comparison with Alternatives

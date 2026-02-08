@@ -773,6 +773,357 @@ go get github.com/some/package
 go run main.go
 ```
 
+## Real-World Workflows
+
+### Workflow 1: Building a Complete API Client
+
+Generate a full-featured SDK from your API documentation:
+
+```bash
+#!/bin/bash
+# scripts/generate-api-client.sh
+
+API_DOCS="https://api.example.com"
+OUTPUT_DIR="src/api"
+LANG="typescript"
+
+# 1. Extract curl commands from API docs (Postman/Swagger export)
+# Assuming you have a collection.json from Postman
+
+# 2. Generate client methods
+mkdir -p "$OUTPUT_DIR"
+
+# Users endpoint
+curl-to-code "curl $API_DOCS/v1/users -H 'Authorization: Bearer TOKEN'" \
+  --lang "$LANG" --async --types --error-handling \
+  --output "$OUTPUT_DIR/users.ts"
+
+# Posts endpoint
+curl-to-code "curl -X POST $API_DOCS/v1/posts -H 'Content-Type: application/json' -d '{\"title\":\"test\"}'" \
+  --lang "$LANG" --async --types --error-handling \
+  --output "$OUTPUT_DIR/posts.ts"
+
+# 3. Create client wrapper
+cat > "$OUTPUT_DIR/client.ts" << 'EOF'
+import { getUsers } from './users';
+import { createPost } from './posts';
+
+export class APIClient {
+  constructor(private apiKey: string) {}
+  
+  users = {
+    list: () => getUsers(this.apiKey),
+    // ... more methods
+  };
+  
+  posts = {
+    create: (data) => createPost(this.apiKey, data),
+    // ... more methods
+  };
+}
+
+export default APIClient;
+EOF
+
+echo "✅ API client generated in $OUTPUT_DIR"
+```
+
+**Result:** A production-ready, typed API client with:
+- Error handling
+- TypeScript types
+- Organized by resource
+- Easy to extend
+
+### Workflow 2: CI/CD Integration Testing
+
+Auto-generate integration tests from curl commands:
+
+```bash
+#!/bin/bash
+# .github/workflows/api-tests.yml
+
+# Extract curl commands from your API tests
+CURL_COMMANDS=$(grep -r "curl " tests/api/*.sh)
+
+# Generate test code for each
+echo "$CURL_COMMANDS" | while read -r curl_cmd; do
+  # Extract test name from comment
+  test_name=$(echo "$curl_cmd" | sed 's/.*# \(.*\)/\1/')
+  
+  # Generate test code
+  echo "$curl_cmd" | curl-to-code --lang python --error-handling > "tests/generated/${test_name}.py"
+  
+  # Add test wrapper
+  cat >> "tests/generated/${test_name}.py" << 'EOF'
+
+def test_api_endpoint():
+    """Auto-generated integration test"""
+    result = make_request()
+    assert result is not None
+    assert 'id' in result
+    print(f"✅ Test passed: {test_name}")
+EOF
+done
+
+# Run generated tests
+pytest tests/generated/
+```
+
+**Benefits:**
+- Curl commands in docs become executable tests
+- Changes to API automatically update test code
+- No manual test maintenance
+
+### Workflow 3: Multi-Language SDK Generation
+
+Create SDKs in multiple languages from a single curl reference:
+
+```bash
+#!/bin/bash
+# scripts/generate-sdks.sh
+
+CURL_REF="curl -X POST https://api.example.com/payment \
+  -H 'Authorization: Bearer sk_test_xxx' \
+  -H 'Content-Type: application/json' \
+  -d '{\"amount\":1000,\"currency\":\"usd\"}'"
+
+# Generate for each language
+for lang in python fetch axios go php ruby; do
+  mkdir -p "sdks/$lang"
+  
+  echo "$CURL_REF" | curl-to-code --lang "$lang" --error-handling \
+    > "sdks/$lang/payment.${EXT[$lang]}"
+  
+  echo "✅ Generated $lang SDK"
+done
+
+# Create documentation with examples
+cat > README.md << 'EOF'
+# Payment API SDKs
+
+## Python
+'''python
+$(cat sdks/python/payment.py)
+'''
+
+## JavaScript (Fetch)
+'''javascript
+$(cat sdks/fetch/payment.js)
+'''
+
+## Go
+'''go
+$(cat sdks/go/payment.go)
+'''
+EOF
+```
+
+**Use case:** Open-source projects, API documentation, developer onboarding
+
+### Workflow 4: DevTools to Production Code
+
+The fastest path from debugging to deployment:
+
+```text
+1. In Chrome DevTools Network tab:
+   - Test your API request
+   - Right-click → Copy → Copy as cURL
+
+2. Paste into terminal:
+   pbpaste | curl-to-code --interactive
+
+3. Interactive wizard:
+   - Select language (TypeScript)
+   - Enable async/await ✓
+   - Enable types ✓
+   - Enable error handling ✓
+
+4. Output goes to clipboard
+
+5. Paste into your codebase:
+   // src/api/newEndpoint.ts
+   <paste here>
+
+6. Refine and test:
+   - Add to API client class
+   - Write unit tests
+   - Deploy!
+
+Total time: 30 seconds 🚀
+```
+
+## Advanced Tips & Tricks
+
+### Tip 1: Environment-Aware Code Generation
+
+Generate code with environment variables:
+
+```bash
+# Development environment
+export API_BASE="http://localhost:3000"
+curl-to-code "curl $API_BASE/users" --lang python > dev_client.py
+
+# Production environment
+export API_BASE="https://api.production.com"
+curl-to-code "curl $API_BASE/users" --lang python > prod_client.py
+
+# Or use template replacement
+curl-to-code "curl https://api.example.com/users" --lang fetch | \
+  sed 's|https://api.example.com|${process.env.API_BASE}|g' > client.ts
+```
+
+### Tip 2: Chain with Other Tools
+
+Combine with json-to-types for end-to-end type safety:
+
+```bash
+# 1. Convert curl to code
+curl-to-code "curl https://api.github.com/users/octocat" \
+  --lang typescript --async --output api.ts
+
+# 2. Fetch sample response and generate types
+curl https://api.github.com/users/octocat | \
+  json-to-types --type zod --output types.ts
+
+# 3. Combine them
+cat > github-client.ts << 'EOF'
+import { userSchema } from './types';
+import { fetchUser as fetchUserRaw } from './api';
+
+export async function fetchUser(username: string) {
+  const data = await fetchUserRaw(username);
+  return userSchema.parse(data); // Runtime validation!
+}
+EOF
+```
+
+### Tip 3: Smart Authentication Handling
+
+Externalize credentials for security:
+
+```bash
+# Bad: Hardcoded credentials in curl
+curl-to-code "curl -H 'Authorization: Bearer sk_live_REAL_KEY' ..." 
+
+# Good: Replace with env var in generated code
+curl-to-code "curl -H 'Authorization: Bearer TOKEN' ..." --lang python | \
+  sed 's/TOKEN/${os.environ["API_KEY"]}/g'
+
+# Better: Create a wrapper script
+cat > generate-with-auth.sh << 'EOF'
+#!/bin/bash
+curl-to-code "$@" | sed -E \
+  -e 's/(Bearer|Basic) [A-Za-z0-9_-]+/\1 ${process.env.API_KEY}/g' \
+  -e 's/password=[^&"'\'']+/password=${process.env.PASSWORD}/g'
+EOF
+
+# Usage
+pbpaste | ./generate-with-auth.sh --lang fetch
+```
+
+### Tip 4: Request/Response Mocking
+
+Generate mock servers from curl commands:
+
+```bash
+# Generate request code
+curl-to-code "curl https://api.example.com/users" --lang node > client.js
+
+# Create mock server
+cat > mock-server.js << 'EOF'
+const express = require('express');
+const app = express();
+
+// Extracted from curl command
+app.get('/users', (req, res) => {
+  res.json([
+    { id: 1, name: "John Doe" },
+    { id: 2, name: "Jane Smith" }
+  ]);
+});
+
+app.listen(3000, () => console.log('Mock server on :3000'));
+EOF
+
+# Test client against mock
+node mock-server.js &
+node client.js
+```
+
+### Tip 5: Rate Limiting & Retry Logic
+
+Add production-grade resilience to generated code:
+
+```typescript
+// After generating with curl-to-code, enhance with:
+import pRetry from 'p-retry';
+import pThrottle from 'p-throttle';
+
+const throttled = pThrottle({
+  limit: 10,        // 10 requests
+  interval: 1000    // per second
+});
+
+async function robustApiCall() {
+  return pRetry(
+    throttled(async () => {
+      // <paste generated code here>
+      const response = await fetch('...');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }),
+    {
+      retries: 3,
+      onFailedAttempt: err => {
+        console.log(`Attempt ${err.attemptNumber} failed. Retrying...`);
+      }
+    }
+  );
+}
+```
+
+### Tip 6: OpenAPI/Swagger Integration
+
+Generate curl from OpenAPI, then convert to code:
+
+```bash
+# 1. Install openapi-to-curl (hypothetical tool)
+npm install -g openapi-to-curl
+
+# 2. Extract curl commands from OpenAPI spec
+openapi-to-curl swagger.json > curls.txt
+
+# 3. Convert all to code
+cat curls.txt | while read -r curl_cmd; do
+  endpoint=$(echo "$curl_cmd" | grep -oP '(?<=/api/)[^?]+')
+  echo "$curl_cmd" | curl-to-code --lang typescript --output "api/${endpoint}.ts"
+done
+```
+
+### Tip 7: Code Coverage for Generated Code
+
+Track which API endpoints have generated clients:
+
+```bash
+#!/bin/bash
+# List all API endpoints
+API_ENDPOINTS=$(curl https://api.example.com/swagger.json | jq -r '.paths | keys[]')
+
+# List generated clients
+GENERATED=$(ls src/api/*.ts | xargs -n1 basename | sed 's/.ts$//')
+
+# Find missing
+echo "Missing clients:"
+comm -23 <(echo "$API_ENDPOINTS" | sort) <(echo "$GENERATED" | sort)
+
+# Auto-generate missing
+for endpoint in $(comm -23 <(echo "$API_ENDPOINTS" | sort) <(echo "$GENERATED" | sort)); do
+  echo "Generating $endpoint..."
+  curl-to-code "curl https://api.example.com$endpoint" \
+    --lang typescript --output "src/api/${endpoint}.ts"
+done
+```
+
 ## Performance Tips
 
 ### Tip 1: Use the Right Language for Your Use Case
@@ -806,6 +1157,36 @@ alias c2c-api='curl-to-code --lang typescript --async --types --error-handling'
 
 # Usage
 echo 'curl https://api.example.com/users' | c2c-api
+```
+
+### Tip 8: Caching Generated Code
+
+Avoid regenerating unchanged endpoints:
+
+```bash
+#!/bin/bash
+# Cache curl → code mappings
+
+CACHE_DIR=".curl-cache"
+mkdir -p "$CACHE_DIR"
+
+function cached_curl_to_code() {
+  local curl_cmd="$1"
+  local hash=$(echo "$curl_cmd" | md5sum | cut -d' ' -f1)
+  local cache_file="$CACHE_DIR/$hash.ts"
+  
+  if [[ -f "$cache_file" ]]; then
+    echo "📦 Using cached: $cache_file"
+    cat "$cache_file"
+  else
+    echo "🔄 Generating new..."
+    echo "$curl_cmd" | curl-to-code --lang typescript > "$cache_file"
+    cat "$cache_file"
+  fi
+}
+
+# Usage
+cached_curl_to_code "curl https://api.example.com/users"
 ```
 
 ## Changelog
