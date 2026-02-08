@@ -866,6 +866,892 @@ readme-gen --update README.md \
 
 **Result:** Fewer "how do I..." questions in issues.
 
+---
+
+## Advanced Workflows
+
+### Workflow 1: Monorepo Documentation Automation
+
+**Scenario:** Managing a monorepo with 20+ packages. Need consistent, up-to-date READMEs across all packages.
+
+**Challenge:** Manually maintaining documentation for each package is time-consuming and leads to inconsistencies.
+
+**Solution:**
+```bash
+#!/bin/bash
+# monorepo-docs-sync.sh - Automated README generation and synchronization
+
+MONOREPO_ROOT="."
+PACKAGES_DIR="packages"
+TEMPLATE_DIR=".readme-templates"
+
+mkdir -p "$TEMPLATE_DIR"
+
+echo "📚 Monorepo Documentation Automation"
+echo "======================================"
+echo ""
+
+# Step 1: Create shared template configuration
+echo "📋 Step 1: Creating shared template configuration..."
+
+cat > "$TEMPLATE_DIR/shared-config.json" <<'EOF'
+{
+  "organization": "your-org",
+  "author": "Your Team",
+  "license": "MIT",
+  "badges": {
+    "npm": true,
+    "build": true,
+    "coverage": true,
+    "license": true
+  },
+  "sections": {
+    "installation": true,
+    "usage": true,
+    "api": true,
+    "contributing": true,
+    "license": true
+  },
+  "style": {
+    "badgeStyle": "flat-square",
+    "toc": true,
+    "emoji": true
+  }
+}
+EOF
+
+# Step 2: Detect package type and apply appropriate template
+echo ""
+echo "🔍 Step 2: Analyzing packages..."
+
+SUMMARY_FILE="docs/package-summary.md"
+mkdir -p docs
+
+{
+  echo "# Monorepo Package Documentation"
+  echo ""
+  echo "Generated: $(date)"
+  echo ""
+  echo "| Package | Type | Version | Status |"
+  echo "|---------|------|---------|--------|"
+} > "$SUMMARY_FILE"
+
+for pkg_dir in "$PACKAGES_DIR"/*; do
+  if [ ! -d "$pkg_dir" ]; then
+    continue
+  fi
+  
+  pkg_name=$(basename "$pkg_dir")
+  echo "  → Processing $pkg_name..."
+  
+  cd "$pkg_dir" || continue
+  
+  # Detect package type from package.json
+  if [ -f "package.json" ]; then
+    has_bin=$(grep -c '"bin"' package.json || echo "0")
+    has_types=$(grep -c '"types"' package.json || echo "0")
+    is_private=$(grep -c '"private": true' package.json || echo "0")
+    
+    if [ "$is_private" -gt 0 ]; then
+      pkg_type="private"
+      template="internal"
+    elif [ "$has_bin" -gt 0 ]; then
+      pkg_type="cli"
+      template="cli"
+    elif [ "$has_types" -gt 0 ]; then
+      pkg_type="library"
+      template="library"
+    else
+      pkg_type="utility"
+      template="library"
+    fi
+    
+    version=$(grep -o '"version": "[^"]*"' package.json | cut -d'"' -f4)
+    
+    # Generate README with appropriate template
+    if [ "$is_private" -eq 0 ]; then
+      readme-gen \
+        --template "$template" \
+        --auto \
+        --add-badges \
+        --add-installation \
+        --add-usage \
+        --add-api \
+        --add-contributing \
+        --force \
+        --output README.md
+      
+      readme_status="✅ Generated"
+    else
+      # Private packages get minimal README
+      readme-gen \
+        --auto \
+        --output README.md \
+        --force
+      
+      readme_status="ℹ️ Internal"
+    fi
+    
+    # Add to summary
+    echo "| [$pkg_name](./$PACKAGES_DIR/$pkg_name) | $pkg_type | $version | $readme_status |" >> "../../$SUMMARY_FILE"
+  else
+    echo "| $pkg_name | unknown | - | ⚠️ No package.json |" >> "../../$SUMMARY_FILE"
+  fi
+  
+  cd - >/dev/null
+done
+
+# Step 3: Generate root README that lists all packages
+echo ""
+echo "📝 Step 3: Generating monorepo root README..."
+
+{
+  echo "# Your Monorepo Name"
+  echo ""
+  echo "A collection of awesome packages for [your purpose]."
+  echo ""
+  echo "## Packages"
+  echo ""
+  
+  for pkg_dir in "$PACKAGES_DIR"/*; do
+    if [ ! -d "$pkg_dir" ]; then
+      continue
+    fi
+    
+    pkg_name=$(basename "$pkg_dir")
+    
+    if [ -f "$pkg_dir/package.json" ]; then
+      desc=$(grep -o '"description": "[^"]*"' "$pkg_dir/package.json" | cut -d'"' -f4)
+      version=$(grep -o '"version": "[^"]*"' "$pkg_dir/package.json" | cut -d'"' -f4)
+      
+      echo "### [$pkg_name](./$PACKAGES_DIR/$pkg_name)"
+      echo ""
+      echo "$desc"
+      echo ""
+      echo "\`\`\`bash"
+      echo "npm install @your-org/$pkg_name"
+      echo "\`\`\`"
+      echo ""
+      echo "**Version:** $version"
+      echo ""
+    fi
+  done
+  
+  echo "## Development"
+  echo ""
+  echo "\`\`\`bash"
+  echo "# Install dependencies"
+  echo "npm install"
+  echo ""
+  echo "# Build all packages"
+  echo "npm run build"
+  echo ""
+  echo "# Run tests"
+  echo "npm test"
+  echo "\`\`\`"
+  echo ""
+  echo "## Documentation"
+  echo ""
+  echo "- [Package Summary](./docs/package-summary.md) - Overview of all packages"
+  echo "- Individual package READMEs in \`packages/*/README.md\`"
+  echo ""
+  echo "## Contributing"
+  echo ""
+  echo "See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines."
+  echo ""
+  echo "## License"
+  echo ""
+  echo "MIT"
+  
+} > README.md
+
+# Step 4: Validate all READMEs
+echo ""
+echo "✅ Step 4: Validating generated READMEs..."
+
+validation_errors=0
+
+for pkg_dir in "$PACKAGES_DIR"/*; do
+  if [ ! -f "$pkg_dir/README.md" ]; then
+    echo "  ❌ Missing README: $pkg_dir"
+    validation_errors=$((validation_errors + 1))
+  else
+    # Check for common issues
+    if ! grep -q "## Installation" "$pkg_dir/README.md" 2>/dev/null; then
+      echo "  ⚠️  $pkg_dir: Missing Installation section"
+    fi
+    
+    if ! grep -q "## Usage" "$pkg_dir/README.md" 2>/dev/null; then
+      echo "  ⚠️  $pkg_dir: Missing Usage section"
+    fi
+  fi
+done
+
+# Step 5: Check for consistency
+echo ""
+echo "🔍 Step 5: Checking documentation consistency..."
+
+# Ensure all public packages have required sections
+required_sections=("Installation" "Usage" "API" "Contributing" "License")
+
+for pkg_dir in "$PACKAGES_DIR"/*; do
+  if [ -f "$pkg_dir/package.json" ] && ! grep -q '"private": true' "$pkg_dir/package.json"; then
+    pkg_name=$(basename "$pkg_dir")
+    
+    for section in "${required_sections[@]}"; do
+      if ! grep -q "## $section" "$pkg_dir/README.md" 2>/dev/null; then
+        echo "  ⚠️  $pkg_name: Missing required section: $section"
+      fi
+    done
+  fi
+done
+
+# Summary
+echo ""
+echo "======================================"
+echo "✅ Documentation automation complete!"
+echo ""
+echo "📊 Summary:"
+total_packages=$(find "$PACKAGES_DIR" -maxdepth 1 -type d | tail -n +2 | wc -l | tr -d ' ')
+public_packages=$(find "$PACKAGES_DIR" -name "package.json" -exec grep -L '"private": true' {} \; | wc -l | tr -d ' ')
+
+echo "   - Total packages: $total_packages"
+echo "   - Public packages: $public_packages"
+echo "   - Private packages: $((total_packages - public_packages))"
+echo "   - Validation errors: $validation_errors"
+echo ""
+echo "📁 Generated files:"
+echo "   - Root README.md"
+echo "   - docs/package-summary.md"
+echo "   - packages/*/README.md (x$total_packages)"
+echo ""
+echo "🚀 Next steps:"
+echo "   1. Review generated READMEs"
+echo "   2. Customize as needed"
+echo "   3. Commit changes: git add . && git commit -m 'docs: update READMEs'"
+echo "   4. Set up CI to auto-generate on releases"
+```
+
+**CI Integration (GitHub Actions):**
+```yaml
+# .github/workflows/docs.yml
+name: Auto-update Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/*/package.json'
+      - 'packages/*/src/**'
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install readme-gen
+        run: npm install -g @muin/readme-gen
+      
+      - name: Generate READMEs
+        run: |
+          chmod +x ./scripts/monorepo-docs-sync.sh
+          ./scripts/monorepo-docs-sync.sh
+      
+      - name: Commit changes
+        run: |
+          git config user.name "Documentation Bot"
+          git config user.email "bot@example.com"
+          git add .
+          git diff --staged --quiet || git commit -m "docs: auto-update READMEs"
+          git push
+```
+
+**Benefits:**
+- Consistent documentation across all packages
+- Automatic updates when packages change
+- Type-specific templates (CLI, library, etc.)
+- Validation ensures quality
+- Saves hours of manual work
+
+---
+
+### Workflow 2: Multi-Language Documentation Pipeline
+
+**Scenario:** Open-source project with international users. Need READMEs in English, Korean, Japanese, and Chinese.
+
+**Challenge:** Manually maintaining 4 versions of documentation is unsustainable and leads to translation drift.
+
+**Solution:**
+```bash
+#!/bin/bash
+# multilang-docs.sh - Automated multi-language documentation pipeline
+
+LANGUAGES=("en" "ko" "ja" "zh")
+SOURCE_LANG="en"
+PROJECT_NAME=$(grep -o '"name": "[^"]*"' package.json | cut -d'"' -f4 || echo "my-project")
+
+echo "🌍 Multi-Language Documentation Pipeline"
+echo "========================================="
+echo ""
+
+# Step 1: Generate master English README
+echo "📝 Step 1: Generating master English README..."
+
+readme-gen \
+  --auto \
+  --add-badges \
+  --add-installation \
+  --add-usage \
+  --add-api \
+  --add-examples \
+  --add-troubleshooting \
+  --add-faq \
+  --add-contributing \
+  --output README.md \
+  --lang en
+
+if [ $? -ne 0 ]; then
+  echo "❌ Failed to generate English README"
+  exit 1
+fi
+
+# Step 2: Extract content structure
+echo ""
+echo "📊 Step 2: Analyzing README structure..."
+
+{
+  echo "# README Structure"
+  echo ""
+  grep "^##" README.md | while read line; do
+    echo "- $line"
+  done
+} > .readme-structure.txt
+
+# Step 3: Generate localized versions
+echo ""
+echo "🌏 Step 3: Generating localized READMEs..."
+
+for lang in "${LANGUAGES[@]}"; do
+  if [ "$lang" == "$SOURCE_LANG" ]; then
+    continue
+  fi
+  
+  echo "  → Generating $lang version..."
+  
+  readme-gen \
+    --lang "$lang" \
+    --auto \
+    --add-badges \
+    --add-installation \
+    --add-usage \
+    --add-api \
+    --add-examples \
+    --add-troubleshooting \
+    --add-faq \
+    --add-contributing \
+    --output "README.$lang.md"
+  
+  if [ $? -eq 0 ]; then
+    echo "     ✅ README.$lang.md created"
+  else
+    echo "     ⚠️  Failed to generate $lang version (tool may not support this language yet)"
+    
+    # Fallback: Create placeholder with link to English version
+    {
+      echo "# $PROJECT_NAME"
+      echo ""
+      echo "> ⚠️ This language is not fully supported yet. Please refer to [English README](./README.md)."
+      echo ""
+      echo "**Available languages:**"
+      for l in "${LANGUAGES[@]}"; do
+        if [ -f "README.$l.md" ]; then
+          echo "- [$l](./README.$l.md)"
+        fi
+      done
+    } > "README.$lang.md"
+  fi
+done
+
+# Step 4: Add language switcher to all READMEs
+echo ""
+echo "🔀 Step 4: Adding language switcher..."
+
+add_language_switcher() {
+  local file=$1
+  local current_lang=$2
+  
+  # Create language switcher
+  switcher="**Languages:** "
+  for lang in "${LANGUAGES[@]}"; do
+    if [ "$lang" == "$current_lang" ]; then
+      switcher="$switcher **$lang** |"
+    else
+      readme_file="README.md"
+      [ "$lang" != "en" ] && readme_file="README.$lang.md"
+      switcher="$switcher [$lang](./$readme_file) |"
+    fi
+  done
+  switcher="${switcher% |}"  # Remove trailing |
+  
+  # Insert at top of file (after title)
+  if [ -f "$file" ]; then
+    # Create temp file with switcher
+    {
+      head -1 "$file"  # Title
+      echo ""
+      echo "$switcher"
+      echo ""
+      tail -n +2 "$file"  # Rest of content
+    } > "$file.tmp"
+    
+    mv "$file.tmp" "$file"
+  fi
+}
+
+# Add to English README
+add_language_switcher "README.md" "en"
+
+# Add to localized READMEs
+for lang in "${LANGUAGES[@]}"; do
+  if [ "$lang" != "en" ] && [ -f "README.$lang.md" ]; then
+    add_language_switcher "README.$lang.md" "$lang"
+  fi
+done
+
+# Step 5: Validate translations
+echo ""
+echo "✅ Step 5: Validating translations..."
+
+validation_report=".translation-validation.md"
+
+{
+  echo "# Translation Validation Report"
+  echo ""
+  echo "Generated: $(date)"
+  echo ""
+  
+  # Compare section counts
+  echo "## Section Counts"
+  echo ""
+  echo "| Language | Sections | Status |"
+  echo "|----------|----------|--------|"
+  
+  en_sections=$(grep -c "^##" README.md)
+  echo "| en | $en_sections | ✅ Master |"
+  
+  for lang in "${LANGUAGES[@]}"; do
+    if [ "$lang" != "en" ] && [ -f "README.$lang.md" ]; then
+      lang_sections=$(grep -c "^##" "README.$lang.md")
+      
+      if [ "$lang_sections" -eq "$en_sections" ]; then
+        status="✅ Complete"
+      elif [ "$lang_sections" -gt 0 ]; then
+        status="⚠️ Partial ($lang_sections/$en_sections)"
+      else
+        status="❌ Empty"
+      fi
+      
+      echo "| $lang | $lang_sections | $status |"
+    fi
+  done
+  
+  echo ""
+  echo "## File Sizes"
+  echo ""
+  
+  for file in README*.md; do
+    size=$(wc -c < "$file" | tr -d ' ')
+    lines=$(wc -l < "$file" | tr -d ' ')
+    echo "- $file: $lines lines, $size bytes"
+  done
+  
+  echo ""
+  echo "## Missing Translations"
+  echo ""
+  
+  for lang in "${LANGUAGES[@]}"; do
+    readme_file="README.md"
+    [ "$lang" != "en" ] && readme_file="README.$lang.md"
+    
+    if [ ! -f "$readme_file" ]; then
+      echo "- ❌ Missing $lang translation"
+    fi
+  done
+  
+} > "$validation_report"
+
+cat "$validation_report"
+
+# Step 6: Generate translation checklist
+echo ""
+echo "📋 Step 6: Creating translation maintenance checklist..."
+
+{
+  echo "# Translation Maintenance Checklist"
+  echo ""
+  echo "When updating documentation:"
+  echo ""
+  echo "## English (Master)"
+  echo "- [ ] Update README.md"
+  echo "- [ ] Review changes"
+  echo "- [ ] Run \`./multilang-docs.sh\` to propagate"
+  echo ""
+  
+  for lang in "${LANGUAGES[@]}"; do
+    if [ "$lang" != "en" ]; then
+      echo "## $lang Translation"
+      echo "- [ ] Review auto-generated README.$lang.md"
+      echo "- [ ] Verify technical terms are correct"
+      echo "- [ ] Check code examples (should remain in English)"
+      echo "- [ ] Validate links and formatting"
+      echo ""
+    fi
+  done
+  
+  echo "## Validation"
+  echo "- [ ] All languages have same section structure"
+  echo "- [ ] Language switcher works on all pages"
+  echo "- [ ] No broken links"
+  echo "- [ ] Commit all README*.md files together"
+  
+} > .translation-checklist.md
+
+# Summary
+echo ""
+echo "========================================="
+echo "✅ Multi-language documentation complete!"
+echo ""
+echo "📄 Generated files:"
+for file in README*.md; do
+  echo "   - $file"
+done
+echo ""
+echo "📊 Validation report: $validation_report"
+echo "📋 Maintenance checklist: .translation-checklist.md"
+echo ""
+echo "🌍 Supported languages: ${LANGUAGES[@]}"
+echo ""
+echo "🚀 Next steps:"
+echo "   1. Review all generated READMEs"
+echo "   2. Verify translations (use native speakers if possible)"
+echo "   3. Commit all README*.md files"
+echo "   4. Set up CI to auto-update on changes"
+```
+
+**CI Integration for Translation Sync:**
+```yaml
+# .github/workflows/translate-docs.yml
+name: Sync Documentation Translations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'README.md'
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install readme-gen
+        run: npm install -g @muin/readme-gen
+      
+      - name: Generate translations
+        run: |
+          chmod +x ./scripts/multilang-docs.sh
+          ./scripts/multilang-docs.sh
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: "docs: sync translations with master README"
+          title: "Auto-update documentation translations"
+          body: |
+            This PR automatically updates translated READMEs to match the master English version.
+            
+            Please review:
+            - Technical term translations
+            - Cultural appropriateness
+            - Formatting and links
+          branch: docs/auto-translate
+          labels: documentation, automation
+```
+
+**Benefits:**
+- Reach international audience
+- Consistent documentation across languages
+- Automated synchronization
+- Quality validation
+- Reduced manual translation effort
+
+---
+
+### Workflow 3: README-Driven API Documentation
+
+**Scenario:** Building an API server. Want README, API docs, and interactive examples to stay synchronized automatically.
+
+**Challenge:** API changes frequently. Manually updating README, OpenAPI spec, and examples leads to outdated documentation.
+
+**Solution:**
+```bash
+#!/bin/bash
+# api-docs-sync.sh - Synchronized API documentation pipeline
+
+API_DIR="src/api"
+DOCS_DIR="docs"
+EXAMPLES_DIR="examples"
+
+mkdir -p "$DOCS_DIR" "$EXAMPLES_DIR"
+
+echo "🔄 API Documentation Synchronization"
+echo "===================================="
+echo ""
+
+# Step 1: Extract API routes from code
+echo "📡 Step 1: Analyzing API routes..."
+
+{
+  echo "# API Routes"
+  echo ""
+  echo "Auto-extracted from \`$API_DIR\`"
+  echo ""
+  echo "| Method | Path | Handler | File |"
+  echo "|--------|------|---------|------|"
+  
+  # Find all route definitions (example for Express)
+  grep -rn "app\.\(get\|post\|put\|delete\|patch\)" "$API_DIR" | while read line; do
+    file=$(echo "$line" | cut -d: -f1)
+    method=$(echo "$line" | grep -o "app\.\w*" | cut -d. -f2 | tr '[:lower:]' '[:upper:]')
+    path=$(echo "$line" | grep -o "'/[^']*'" | tr -d "'")
+    handler=$(echo "$line" | grep -o "(\w*)" | tr -d '()')
+    
+    echo "| $method | $path | $handler | $(basename $file) |"
+  done
+  
+} > "$DOCS_DIR/api-routes.md"
+
+# Step 2: Generate OpenAPI spec from code comments
+echo ""
+echo "📄 Step 2: Generating OpenAPI specification..."
+
+{
+  echo "openapi: 3.0.0"
+  echo "info:"
+  echo "  title: $(grep -o '"name": "[^"]*"' package.json | cut -d'"' -f4 || echo "API")"
+  echo "  version: $(grep -o '"version": "[^"]*"' package.json | cut -d'"' -f4 || echo "1.0.0")"
+  echo "  description: Auto-generated API documentation"
+  echo "paths:"
+  
+  # Parse JSDoc comments for OpenAPI annotations
+  # (This is simplified - use swagger-jsdoc or similar in production)
+  grep -rA 10 "@openapi" "$API_DIR" | while read line; do
+    echo "  # $line"
+  done
+  
+} > "$DOCS_DIR/openapi.yaml"
+
+# Step 3: Generate interactive examples
+echo ""
+echo "💻 Step 3: Creating interactive examples..."
+
+# For each endpoint, create a curl example
+{
+  echo "# API Examples"
+  echo ""
+  echo "Copy-paste curl commands to test the API."
+  echo ""
+  
+  grep -rn "app\.\(get\|post\|put\|delete\)" "$API_DIR" | while read line; do
+    method=$(echo "$line" | grep -o "app\.\w*" | cut -d. -f2 | tr '[:lower:]' '[:upper:]')
+    path=$(echo "$line" | grep -o "'/[^']*'" | tr -d "'")
+    
+    echo "## $method $path"
+    echo ""
+    echo '```bash'
+    
+    case $method in
+      GET)
+        echo "curl -X GET http://localhost:3000$path"
+        ;;
+      POST)
+        echo "curl -X POST http://localhost:3000$path \\"
+        echo "  -H 'Content-Type: application/json' \\"
+        echo "  -d '{\"key\": \"value\"}'"
+        ;;
+      PUT|PATCH)
+        echo "curl -X $method http://localhost:3000$path \\"
+        echo "  -H 'Content-Type: application/json' \\"
+        echo "  -d '{\"key\": \"updated_value\"}'"
+        ;;
+      DELETE)
+        echo "curl -X DELETE http://localhost:3000$path"
+        ;;
+    esac
+    
+    echo '```'
+    echo ""
+  done
+  
+} > "$EXAMPLES_DIR/api-examples.md"
+
+# Step 4: Generate comprehensive README with API docs
+echo ""
+echo "📝 Step 4: Generating README with API documentation..."
+
+readme-gen \
+  --auto \
+  --template api \
+  --add-badges \
+  --add-installation \
+  --add-usage \
+  --add-api \
+  --output README.md \
+  --force
+
+# Append API-specific sections
+{
+  echo ""
+  echo "## API Reference"
+  echo ""
+  echo "### Endpoints"
+  echo ""
+  cat "$DOCS_DIR/api-routes.md" | tail -n +5  # Skip header
+  echo ""
+  echo "### Interactive Examples"
+  echo ""
+  echo "See [examples/api-examples.md](./examples/api-examples.md) for curl commands."
+  echo ""
+  echo "### OpenAPI Specification"
+  echo ""
+  echo "Full OpenAPI 3.0 spec available at [docs/openapi.yaml](./docs/openapi.yaml)"
+  echo ""
+  echo "You can also:"
+  echo "- View in Swagger UI: \`npm run swagger\`"
+  echo "- Generate client SDKs: \`openapi-generator generate -i docs/openapi.yaml -g javascript\`"
+  echo ""
+  
+} >> README.md
+
+# Step 5: Generate Postman collection
+echo ""
+echo "📬 Step 5: Creating Postman collection..."
+
+{
+  echo "{"
+  echo "  \"info\": {"
+  echo "    \"name\": \"$(grep -o '"name": "[^"]*"' package.json | cut -d'"' -f4) API\","
+  echo "    \"schema\": \"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\""
+  echo "  },"
+  echo "  \"item\": ["
+  
+  first=true
+  grep -rn "app\.\(get\|post\|put\|delete\)" "$API_DIR" | while read line; do
+    method=$(echo "$line" | grep -o "app\.\w*" | cut -d. -f2 | tr '[:lower:]' '[:upper:]')
+    path=$(echo "$line" | grep -o "'/[^']*'" | tr -d "'")
+    
+    [ "$first" = false ] && echo "    ,"
+    first=false
+    
+    echo "    {"
+    echo "      \"name\": \"$method $path\","
+    echo "      \"request\": {"
+    echo "        \"method\": \"$method\","
+    echo "        \"url\": \"http://localhost:3000$path\""
+    echo "      }"
+    echo "    }"
+  done
+  
+  echo "  ]"
+  echo "}"
+  
+} > "$DOCS_DIR/postman-collection.json"
+
+# Step 6: Create API changelog
+echo ""
+echo "📰 Step 6: Tracking API changes..."
+
+if [ -f "$DOCS_DIR/api-changelog.md" ]; then
+  # Compare with previous version
+  diff "$DOCS_DIR/api-routes.md" "$DOCS_DIR/.api-routes.prev" > /tmp/api-diff || true
+  
+  if [ -s /tmp/api-diff ]; then
+    {
+      echo "## $(date +%Y-%m-%d)"
+      echo ""
+      echo "### Changes"
+      echo ""
+      grep "^>" /tmp/api-diff | sed 's/^> /- Added: /'
+      grep "^<" /tmp/api-diff | sed 's/^< /- Removed: /'
+      echo ""
+    } | cat - "$DOCS_DIR/api-changelog.md" > /tmp/api-changelog-new
+    
+    mv /tmp/api-changelog-new "$DOCS_DIR/api-changelog.md"
+  fi
+else
+  {
+    echo "# API Changelog"
+    echo ""
+    echo "## $(date +%Y-%m-%d)"
+    echo ""
+    echo "- Initial API documentation"
+  } > "$DOCS_DIR/api-changelog.md"
+fi
+
+cp "$DOCS_DIR/api-routes.md" "$DOCS_DIR/.api-routes.prev"
+
+# Summary
+echo ""
+echo "===================================="
+echo "✅ API documentation sync complete!"
+echo ""
+echo "📁 Generated files:"
+echo "   - README.md (with API reference)"
+echo "   - docs/api-routes.md"
+echo "   - docs/openapi.yaml"
+echo "   - docs/postman-collection.json"
+echo "   - docs/api-changelog.md"
+echo "   - examples/api-examples.md"
+echo ""
+echo "🔗 Quick links:"
+echo "   - Swagger UI: npm run swagger"
+echo "   - Postman: Import docs/postman-collection.json"
+echo "   - Examples: cat examples/api-examples.md"
+echo ""
+echo "🚀 Next steps:"
+echo "   1. Review generated documentation"
+echo "   2. Add JSDoc @openapi comments to routes"
+echo "   3. Run this script after API changes"
+echo "   4. Commit all docs together with code"
+```
+
+**Pre-commit Hook:**
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+
+# Auto-update API docs before committing
+if git diff --staged --name-only | grep -q "^src/api/"; then
+  echo "🔄 API files changed, updating documentation..."
+  ./scripts/api-docs-sync.sh
+  
+  # Stage updated docs
+  git add README.md docs/ examples/
+  
+  echo "✅ API documentation updated and staged"
+fi
+```
+
+**Benefits:**
+- Single source of truth (code)
+- Documentation always in sync
+- Multiple export formats (README, OpenAPI, Postman)
+- Automatic changelog tracking
+- Interactive examples for testing
+
+---
 ## Troubleshooting
 
 ### Issue: "No package.json found"
