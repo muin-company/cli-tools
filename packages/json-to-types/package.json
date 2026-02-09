@@ -6,10 +6,16 @@
   "bin": {
     "json-to-types": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "jest"
+    "test": "jest",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "json",
@@ -23,6 +29,18 @@
   "author": "MUIN",
   "license": "MIT",
   "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muin-company/cli-tools.git",
+    "directory": "packages/json-to-types"
+  },
+  "homepage": "https://github.com/muin-company/cli-tools/tree/main/packages/json-to-types#readme",
+  "bugs": {
+    "url": "https://github.com/muin-company/cli-tools/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "dependencies": {
     "commander": "^11.1.0",
     "inquirer": "^9.2.12",
