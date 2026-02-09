@@ -7,6 +7,23 @@
 
 Compare environment files, detect missing variables, and ensure configuration consistency across environments.
 
+## 🚀 Current Status: MVP Implemented
+
+**Working Features:**
+- ✅ Compare two .env files side-by-side
+- ✅ Detect added, removed, and modified variables
+- ✅ Beautiful colored table output
+- ✅ Automatic secret masking
+- ✅ JSON output format
+- ✅ Keys-only comparison mode
+
+**Coming Soon:**
+- ⏳ Check for missing required variables
+- ⏳ Secret detection and validation
+- ⏳ Multi-environment comparison
+- ⏳ Interactive mode
+- ⏳ Sync and template generation
+
 ## Features
 
 - 🔍 **Smart Comparison** - Deep comparison of .env files with intelligent diff
