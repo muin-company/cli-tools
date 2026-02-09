@@ -6,10 +6,15 @@
   "bin": {
     "curl-to-code": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "jest"
+    "test": "jest",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "curl",
@@ -24,6 +29,15 @@
   "author": "MUIN",
   "license": "MIT",
   "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muin-company/cli-tools.git",
+    "directory": "packages/curl-to-code"
+  },
+  "bugs": {
+    "url": "https://github.com/muin-company/cli-tools/issues"
+  },
+  "homepage": "https://github.com/muin-company/cli-tools/tree/main/packages/curl-to-code#readme",
   "dependencies": {
     "commander": "^11.1.0",
     "inquirer": "^9.2.12",
