@@ -36,5 +36,9 @@
   "homepage": "https://github.com/muin-company/cli-tools/tree/main/packages/depcheck-lite#readme",
   "engines": {
     "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.2",
+    "typescript": "^5.9.3"
   }
 }

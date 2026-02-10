@@ -1099,6 +1099,614 @@ depcheck-lite --format summary # Just counts
 depcheck-lite --format json    # Machine-readable
 ```
 
+## Advanced Workflows
+
+### Workflow 1: Automated Dependency Cleanup Pipeline
+
+**Scenario:** Large monorepo with 20+ packages, want to keep all dependencies clean automatically.
+
+**Setup:**
+```bash
+# Install in root
+npm install --save-dev @muin/depcheck-lite
+
+# Create cleanup script (scripts/dep-cleanup.sh)
+#!/bin/bash
+set -e
+
+echo "🧹 Starting automated dependency cleanup..."
+
+# Find all package.json files
+PACKAGES=$(find packages -name "package.json" -not -path "*/node_modules/*")
+
+# Track results
+TOTAL_REMOVED=0
+TOTAL_SIZE_SAVED=0
+
+for pkg in $PACKAGES; do
+  DIR=$(dirname $pkg)
+  echo ""
+  echo "📦 Checking $DIR..."
+  
+  cd $DIR
+  
+  # Run depcheck-lite
+  RESULT=$(depcheck-lite --json)
+  UNUSED=$(echo $RESULT | jq '.dependencies.unused')
+  
+  if [ "$UNUSED" -gt 0 ]; then
+    echo "  Found $UNUSED unused dependencies"
+    
+    # Remove unused deps
+    depcheck-lite --fix --quiet
+    
+    TOTAL_REMOVED=$((TOTAL_REMOVED + UNUSED))
+  else
+    echo "  ✅ No unused dependencies"
+  fi
+  
+  cd - > /dev/null
+done
+
+echo ""
+echo "✨ Cleanup complete!"
+echo "   Total dependencies removed: $TOTAL_REMOVED"
+echo "   Estimated size saved: ${TOTAL_SIZE_SAVED} MB"
+
+# Commit changes if any
+if git diff --quiet; then
+  echo "   No changes to commit"
+else
+  git add .
+  git commit -m "chore: remove unused dependencies (automated cleanup)"
+  echo "   Changes committed"
+fi
+```
+
+**Cron Job (.github/workflows/dep-cleanup.yml):**
+```yaml
+name: Automated Dependency Cleanup
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Every Monday at 2 AM
+  workflow_dispatch:     # Manual trigger
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.BOT_TOKEN }}  # Bot token for commits
+      
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run cleanup
+        run: bash scripts/dep-cleanup.sh
+      
+      - name: Create PR if changes
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          git checkout -b automated/dep-cleanup-$(date +%Y%m%d)
+          git push origin HEAD
+          gh pr create \
+            --title "🧹 Automated dependency cleanup" \
+            --body "Removed unused dependencies found by depcheck-lite" \
+            --label "dependencies,automated"
+```
+
+**Result:** Weekly automated cleanup, creates PR with removed dependencies, saves time and keeps repo clean.
+
+### Workflow 2: Pre-commit Dependency Gate
+
+**Scenario:** Prevent committing code that adds unused dependencies.
+
+**Setup:**
+```bash
+# Install husky and depcheck-lite
+npm install --save-dev husky @muin/depcheck-lite
+
+# Initialize husky
+npx husky install
+
+# Create pre-commit hook
+cat > .husky/pre-commit << 'EOF'
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔍 Checking dependencies..."
+
+# Check if package.json changed
+if git diff --cached --name-only | grep -q "package.json"; then
+  echo "📦 package.json changed, running depcheck..."
+  
+  # Run depcheck on staged changes
+  depcheck-lite --quiet --skip-missing
+  
+  if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ Unused dependencies detected!"
+    echo "   Run: depcheck-lite --interactive"
+    echo "   Or:  depcheck-lite --fix"
+    echo ""
+    exit 1
+  fi
+  
+  echo "✅ All dependencies used"
+fi
+EOF
+
+chmod +x .husky/pre-commit
+```
+
+**Advanced: Check only new dependencies:**
+```bash
+#!/bin/sh
+# .husky/pre-commit (advanced version)
+
+# Get dependencies from staged package.json
+STAGED_DEPS=$(git show :package.json | jq -r '.dependencies | keys[]')
+
+# Get dependencies from HEAD
+HEAD_DEPS=$(git show HEAD:package.json | jq -r '.dependencies | keys[]')
+
+# Find new dependencies
+NEW_DEPS=$(comm -13 <(echo "$HEAD_DEPS" | sort) <(echo "$STAGED_DEPS" | sort))
+
+if [ -n "$NEW_DEPS" ]; then
+  echo "📦 New dependencies added:"
+  echo "$NEW_DEPS" | sed 's/^/   - /'
+  
+  # Check if new deps are actually used
+  for dep in $NEW_DEPS; do
+    if ! grep -r "from ['\"]$dep['\"]" src/ > /dev/null; then
+      echo "❌ $dep is not imported anywhere!"
+      exit 1
+    fi
+  done
+  
+  echo "✅ All new dependencies are used"
+fi
+```
+
+**Result:** Catches unused deps before they're committed, prevents accidental additions.
+
+### Workflow 3: Dependency Audit Report for Stakeholders
+
+**Scenario:** Monthly report for management showing dependency health.
+
+**Setup (scripts/dep-report.js):**
+```javascript
+#!/usr/bin/env node
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+function generateReport() {
+  const packages = findAllPackages();
+  const results = [];
+  
+  for (const pkg of packages) {
+    const result = JSON.parse(
+      execSync(`cd ${pkg.path} && depcheck-lite --json`, { encoding: 'utf8' })
+    );
+    results.push({ ...result, package: pkg.name });
+  }
+  
+  // Generate HTML report
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dependency Health Report - ${new Date().toLocaleDateString()}</title>
+  <style>
+    body { font-family: system-ui; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+    .card { background: #f5f5f5; padding: 1.5rem; border-radius: 8px; }
+    .card h3 { margin: 0 0 0.5rem 0; color: #666; font-size: 0.9rem; }
+    .card .value { font-size: 2rem; font-weight: bold; }
+    .good { color: #22c55e; }
+    .warning { color: #f59e0b; }
+    .bad { color: #ef4444; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #e5e7eb; }
+    th { background: #f9fafb; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>📦 Dependency Health Report</h1>
+  <p>Generated: ${new Date().toLocaleString()}</p>
+  
+  <div class="summary">
+    <div class="card">
+      <h3>Total Packages</h3>
+      <div class="value">${results.length}</div>
+    </div>
+    <div class="card">
+      <h3>Total Dependencies</h3>
+      <div class="value">${results.reduce((sum, r) => sum + r.dependencies.total, 0)}</div>
+    </div>
+    <div class="card">
+      <h3>Unused Dependencies</h3>
+      <div class="value ${results.reduce((sum, r) => sum + r.dependencies.unused, 0) === 0 ? 'good' : 'warning'}">
+        ${results.reduce((sum, r) => sum + r.dependencies.unused, 0)}
+      </div>
+    </div>
+    <div class="card">
+      <h3>Health Score</h3>
+      <div class="value ${calculateScore(results) > 90 ? 'good' : calculateScore(results) > 70 ? 'warning' : 'bad'}">
+        ${calculateScore(results)}%
+      </div>
+    </div>
+  </div>
+  
+  <h2>Package Details</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Package</th>
+        <th>Total Deps</th>
+        <th>Used</th>
+        <th>Unused</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${results.map(r => `
+        <tr>
+          <td>${r.package}</td>
+          <td>${r.dependencies.total}</td>
+          <td>${r.dependencies.used}</td>
+          <td>${r.dependencies.unused}</td>
+          <td><span class="${r.dependencies.unused === 0 ? 'good' : 'warning'}">
+            ${r.dependencies.unused === 0 ? '✅ Clean' : '⚠️ Needs cleanup'}
+          </span></td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+  
+  ${results.filter(r => r.dependencies.unused > 0).length > 0 ? `
+    <h2>Recommendations</h2>
+    <ul>
+      ${results.filter(r => r.dependencies.unused > 0).map(r => `
+        <li><strong>${r.package}</strong>: Remove ${r.dependencies.unused} unused dependencies
+          <ul>
+            ${r.unused.map(d => `<li>${d.name}</li>`).join('')}
+          </ul>
+        </li>
+      `).join('')}
+    </ul>
+  ` : '<p style="color: #22c55e; font-size: 1.2rem;">🎉 All packages are clean!</p>'}
+</body>
+</html>
+  `;
+  
+  fs.writeFileSync('dep-health-report.html', html);
+  console.log('✅ Report generated: dep-health-report.html');
+}
+
+function calculateScore(results) {
+  const totalDeps = results.reduce((sum, r) => sum + r.dependencies.total, 0);
+  const unusedDeps = results.reduce((sum, r) => sum + r.dependencies.unused, 0);
+  return Math.round(((totalDeps - unusedDeps) / totalDeps) * 100);
+}
+
+function findAllPackages() {
+  // Implementation
+  return [];
+}
+
+generateReport();
+```
+
+**Automate monthly:**
+```yaml
+# .github/workflows/dep-report.yml
+name: Monthly Dependency Report
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # First day of month at 9 AM
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Generate report
+        run: node scripts/dep-report.js
+      
+      - name: Upload to S3
+        run: aws s3 cp dep-health-report.html s3://reports/deps/$(date +%Y-%m).html
+      
+      - name: Send email
+        run: |
+          echo "Monthly dependency report is ready: https://reports.company.com/deps/$(date +%Y-%m).html" | \
+            mail -s "📊 Dependency Health Report" management@company.com
+```
+
+**Result:** Automated monthly reports, visual dashboard for management, tracks improvement over time.
+
+### Workflow 4: Smart Dependency Updater
+
+**Scenario:** Update dependencies but only if they're actually used.
+
+**Setup (scripts/smart-update.js):**
+```javascript
+#!/usr/bin/env node
+const { execSync } = require('child_process');
+
+// Get outdated dependencies
+const outdated = JSON.parse(
+  execSync('npm outdated --json', { encoding: 'utf8' })
+);
+
+// Check which are actually used
+const depcheck = JSON.parse(
+  execSync('depcheck-lite --json', { encoding: 'utf8' })
+);
+
+const unusedSet = new Set(depcheck.unused.map(d => d.name));
+
+// Update only used dependencies
+const toUpdate = Object.keys(outdated)
+  .filter(dep => !unusedSet.has(dep));
+
+console.log(`📦 Found ${Object.keys(outdated).length} outdated dependencies`);
+console.log(`✅ ${toUpdate.length} are used and will be updated`);
+console.log(`🗑️  ${Object.keys(outdated).length - toUpdate.length} are unused and will be removed`);
+
+// Update used dependencies
+for (const dep of toUpdate) {
+  const latest = outdated[dep].latest;
+  console.log(`Updating ${dep} to ${latest}...`);
+  execSync(`npm install ${dep}@${latest}`, { stdio: 'inherit' });
+}
+
+// Remove unused dependencies
+const unusedOutdated = Object.keys(outdated).filter(dep => unusedSet.has(dep));
+if (unusedOutdated.length > 0) {
+  console.log(`\nRemoving unused: ${unusedOutdated.join(', ')}`);
+  execSync(`npm uninstall ${unusedOutdated.join(' ')}`, { stdio: 'inherit' });
+}
+
+console.log('\n✨ Smart update complete!');
+```
+
+**Result:** Updates only used dependencies, removes unused ones, saves time and reduces risk.
+
+## Pro Tips & Tricks
+
+### Tip 1: Speed Up Checks with Caching
+
+```bash
+# First run (slow - analyzes all files)
+depcheck-lite  # ~5 seconds
+
+# Enable caching
+depcheck-lite --cache  # ~5 seconds first time
+
+# Subsequent runs (fast - uses cache)
+depcheck-lite --cache  # ~0.5 seconds ⚡
+
+# Cache is stored in .depcheck-cache.json
+# Invalidates automatically when files change
+
+# Clear cache manually
+rm .depcheck-cache.json
+```
+
+### Tip 2: Parallel Monorepo Scanning
+
+```bash
+# Slow (sequential)
+for pkg in packages/*; do
+  cd $pkg && depcheck-lite
+done
+# Takes: 30+ seconds for 10 packages
+
+# Fast (parallel with GNU parallel)
+ls packages | parallel 'cd packages/{} && depcheck-lite --quiet'
+# Takes: 5 seconds ⚡
+
+# Or with xargs (built-in)
+find packages -name package.json -execdir depcheck-lite --quiet \;
+
+# Aggregate results
+find packages -name package.json -execdir sh -c \
+  'depcheck-lite --json | jq -r ".package = \"$(basename $(pwd))\" | ."' \; \
+  | jq -s '.'
+```
+
+### Tip 3: Ignore Pattern Wildcards
+
+```bash
+# Instead of listing all @types packages
+depcheck-lite --ignore "@types/node,@types/react,@types/jest"
+
+# Use wildcards in .depcheckrc
+{
+  "ignoreMatches": [
+    "@types/*",        # All type packages
+    "eslint-*",        # All ESLint plugins
+    "@babel/*",        # All Babel packages
+    "webpack-*"        # All Webpack loaders/plugins
+  ]
+}
+
+# Save time and maintenance
+```
+
+### Tip 4: Smart Dev vs Prod Dependency Checks
+
+```bash
+# Check only production dependencies (for bundle size)
+depcheck-lite --skip-dev --json | jq '.unused'
+
+# Check only dev dependencies (for tooling cleanup)
+depcheck-lite --dev-only --json | jq '.unused'
+
+# Different thresholds
+depcheck-lite --skip-dev --fail-on-unused  # Strict for prod
+depcheck-lite --dev-only --warn-only       # Lenient for dev
+
+# Reason: Unused prod deps affect bundle, unused dev deps don't
+```
+
+### Tip 5: Custom Usage Detection
+
+```bash
+# Some packages are used in non-standard ways
+# Add custom detectors via config
+
+# .depcheckrc.js
+module.exports = {
+  detectors: [
+    // Default detectors
+    'importDeclaration',
+    'requireCallExpression',
+    
+    // Custom detector for webpack configs
+    {
+      name: 'webpackConfigDetector',
+      match: (dep, files) => {
+        // Check if used in webpack.config.js
+        return files.some(f => 
+          f.includes('webpack.config.js') && 
+          f.content.includes(dep)
+        );
+      }
+    },
+    
+    // Custom detector for npm scripts
+    {
+      name: 'npmScriptDetector',
+      match: (dep) => {
+        const pkg = require('./package.json');
+        const scripts = Object.values(pkg.scripts || {}).join(' ');
+        return scripts.includes(dep);
+      }
+    }
+  ]
+};
+
+depcheck-lite --config .depcheckrc.js
+```
+
+### Tip 6: Batch Operations with JSON Output
+
+```bash
+# Get all unused dependencies as JSON
+UNUSED=$(depcheck-lite --json | jq -r '.unused[].name')
+
+# Batch remove
+echo "$UNUSED" | xargs npm uninstall
+
+# Or save for review
+depcheck-lite --json | jq '.unused[] | {name, version, type}' > unused-deps.json
+
+# Review later
+cat unused-deps.json
+
+# Remove specific subset
+cat unused-deps.json | jq -r 'select(.type=="dependencies") | .name' | xargs npm uninstall
+```
+
+### Tip 7: Integration with npm scripts
+
+```json
+{
+  "scripts": {
+    "deps:check": "depcheck-lite",
+    "deps:fix": "depcheck-lite --fix",
+    "deps:report": "depcheck-lite --json > deps-report.json",
+    "deps:unused": "depcheck-lite --json | jq -r '.unused[].name'",
+    "deps:missing": "depcheck-lite --json | jq -r '.missing[].name' | xargs npm install",
+    "pretest": "npm run deps:check",
+    "precommit": "depcheck-lite --quiet || echo 'Warning: unused deps detected'"
+  }
+}
+```
+
+### Tip 8: Whitelist Essential Build Tools
+
+```bash
+# Some deps are never imported but essential
+# Whitelist them to avoid false positives
+
+# .depcheckrc
+{
+  "ignoreMatches": [
+    "webpack",           # Used by webpack CLI
+    "webpack-cli",       # CLI tool
+    "@babel/core",       # Used by babel CLI
+    "typescript",        # Used by tsc
+    "jest",              # Test runner
+    "eslint",            # Linter
+    "prettier"           # Formatter
+  ],
+  "ignorePatterns": [
+    "*.config.js",       # Config files often not imported
+    "*.test.js",         # Test files
+    "setupTests.js"
+  ]
+}
+```
+
+### Tip 9: Detect Phantom Dependencies
+
+```bash
+# Phantom dependencies: Used but not declared (relying on hoisting)
+# Dangerous! Can break when upgrading other packages
+
+depcheck-lite --detect-phantom
+
+# Output:
+# ⚠️  Phantom Dependencies (3):
+#   • @babel/runtime
+#     ├─ Imported in: src/utils.js
+#     ├─ Not in package.json
+#     └─ Provided by: babel-preset-react-app (hoisting)
+#
+# Fix:
+npm install @babel/runtime  # Declare explicitly
+
+# Prevent in CI:
+depcheck-lite --detect-phantom --fail-on-phantom
+```
+
+### Tip 10: Track Dependency Health Over Time
+
+```bash
+# Daily snapshot
+echo "$(date),$(depcheck-lite --json | jq '{total: .dependencies.total, unused: .dependencies.unused}')" \
+  >> deps-history.csv
+
+# Visualize trend
+gnuplot << EOF
+set datafile separator ","
+set xdata time
+set timefmt "%Y-%m-%d"
+set format x "%m/%d"
+set terminal png size 800,400
+set output "deps-trend.png"
+plot "deps-history.csv" using 1:2 with lines title "Total Deps", \
+     "" using 1:3 with lines title "Unused Deps"
+EOF
+
+# Or use any charting tool
+cat deps-history.csv | \
+  jq -R 'split(",") | {date: .[0], total: .[1], unused: .[2]}' | \
+  jq -s '.' > deps-trend.json
+```
+
 ## Roadmap
 
 - [ ] **Automatic --fix for missing deps** - Install missing packages automatically

@@ -1106,6 +1106,692 @@ A: Minimal:
 
 Use `--format summary --quiet` for fastest checks (~1s).
 
+## Advanced Workflows
+
+### Workflow 1: Multi-Environment Lock File Strategy
+
+**Scenario:** Different lock file requirements for development vs production.
+
+**Problem:**
+- Developers use `npm install` (updates lock file)
+- CI/Production use `npm ci` (frozen lock file)
+- Lock file conflicts during merges
+
+**Solution:**
+```bash
+# Development workflow
+#!/bin/bash
+# scripts/dev-setup.sh
+
+echo "🔧 Setting up development environment..."
+
+# Validate lock file first
+lockcheck --strict
+
+if [ $? -ne 0 ]; then
+  echo "⚠️  Lock file issues detected"
+  echo ""
+  read -p "Fix lock file automatically? (y/n) " -n 1 -r
+  echo
+  
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    # Backup lock file
+    cp package-lock.json package-lock.json.backup
+    
+    # Regenerate
+    rm package-lock.json
+    npm install
+    
+    # Verify
+    lockcheck --verify-integrity
+    
+    if [ $? -eq 0 ]; then
+      echo "✅ Lock file fixed"
+      rm package-lock.json.backup
+    else
+      echo "❌ Fix failed, restoring backup"
+      mv package-lock.json.backup package-lock.json
+      exit 1
+    fi
+  fi
+fi
+
+# Install dependencies
+npm install
+
+echo "✅ Development environment ready"
+```
+
+**CI/Production workflow:**
+```yaml
+# .github/workflows/production.yml
+name: Production Deployment
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Validate lock file (strict)
+        run: |
+          lockcheck --strict --security-only --verify-integrity
+          
+          # Fail if any issues
+          if [ $? -ne 0 ]; then
+            echo "❌ Lock file validation failed"
+            echo "Lock file must be valid before production deployment"
+            exit 1
+          fi
+      
+      - name: Use frozen lockfile
+        run: npm ci  # Never npm install in production!
+      
+      - name: Verify installed versions
+        run: |
+          # Double-check installed versions match lock file
+          lockcheck --post-install-verify
+      
+      - name: Deploy
+        run: npm run deploy
+```
+
+**Result:**
+- Development: Flexible, auto-fixes issues
+- Production: Strict validation, frozen lock file
+- No surprises in production
+
+### Workflow 2: Lock File Conflict Resolver
+
+**Scenario:** After merging branches, lock file has conflicts.
+
+**Problem:**
+```
+<<<<<<< HEAD
+    "express": {
+      "version": "4.18.0"
+    }
+=======
+    "express": {
+      "version": "4.18.2"
+    }
+>>>>>>> feature-branch
+```
+
+**Solution:**
+```bash
+#!/bin/bash
+# scripts/resolve-lock-conflicts.sh
+
+echo "🔍 Checking for lock file conflicts..."
+
+# Check if lock file has conflicts
+if grep -q "<<<<<<<" package-lock.json; then
+  echo "⚠️  Lock file conflicts detected"
+  
+  # Strategy 1: Use theirs and regenerate
+  echo ""
+  echo "Strategy 1: Use incoming changes (feature branch)"
+  echo "  - Keeps feature branch lock file"
+  echo "  - Regenerates to ensure consistency"
+  
+  # Strategy 2: Use ours and regenerate
+  echo ""
+  echo "Strategy 2: Use current changes (main branch)"
+  echo "  - Keeps main branch lock file"
+  echo "  - Regenerates to ensure consistency"
+  
+  # Strategy 3: Regenerate from scratch
+  echo ""
+  echo "Strategy 3: Fresh install"
+  echo "  - Deletes lock file"
+  echo "  - Generates new one from package.json"
+  echo "  - Safest but might update versions"
+  
+  echo ""
+  read -p "Choose strategy (1/2/3): " strategy
+  
+  case $strategy in
+    1)
+      echo "Using incoming changes..."
+      git checkout --theirs package-lock.json
+      npm install --package-lock-only
+      ;;
+    2)
+      echo "Using current changes..."
+      git checkout --ours package-lock.json
+      npm install --package-lock-only
+      ;;
+    3)
+      echo "Fresh install..."
+      rm package-lock.json
+      npm install
+      ;;
+    *)
+      echo "Invalid choice"
+      exit 1
+      ;;
+  esac
+  
+  # Validate result
+  lockcheck --strict
+  
+  if [ $? -eq 0 ]; then
+    echo "✅ Lock file conflict resolved"
+    git add package-lock.json
+  else
+    echo "❌ Resolution failed"
+    exit 1
+  fi
+else
+  echo "✅ No conflicts found"
+fi
+```
+
+**Git hook (.husky/post-merge):**
+```bash
+#!/bin/sh
+# Automatically detect lock file conflicts after merge
+
+if grep -q "<<<<<<<" package-lock.json 2>/dev/null; then
+  echo ""
+  echo "⚠️  Lock file has merge conflicts!"
+  echo "   Run: bash scripts/resolve-lock-conflicts.sh"
+  echo ""
+  exit 1
+fi
+
+# Validate lock file after merge
+lockcheck --quiet || {
+  echo "⚠️  Lock file validation failed after merge"
+  echo "   Run: lockcheck --interactive"
+}
+```
+
+**Result:** Automated conflict detection, guided resolution, prevents broken lock files.
+
+### Workflow 3: Supply Chain Security Monitoring
+
+**Scenario:** Continuous monitoring for compromised packages in lock file.
+
+**Setup:**
+```bash
+#!/bin/bash
+# scripts/supply-chain-monitor.sh
+
+echo "🔐 Supply Chain Security Check"
+
+# 1. Verify integrity checksums
+echo "1️⃣  Verifying package integrity..."
+lockcheck --verify-integrity --json > integrity-check.json
+
+FAILED=$(jq '.failed | length' integrity-check.json)
+if [ "$FAILED" -gt 0 ]; then
+  echo "❌ Integrity check failed for $FAILED packages!"
+  jq '.failed' integrity-check.json
+  
+  # Alert security team
+  curl -X POST $SLACK_SECURITY_WEBHOOK -d '{
+    "text": "🚨 SECURITY ALERT: Package integrity check failed",
+    "attachments": [{
+      "color": "danger",
+      "text": "'"$FAILED"' packages failed integrity verification"
+    }]
+  }'
+  
+  exit 1
+fi
+
+# 2. Check for known vulnerabilities
+echo "2️⃣  Scanning for vulnerabilities..."
+lockcheck --security-only --json > vuln-check.json
+
+CRITICAL=$(jq '.vulnerabilities.critical' vuln-check.json)
+HIGH=$(jq '.vulnerabilities.high' vuln-check.json)
+
+if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+  echo "❌ Found $CRITICAL critical and $HIGH high vulnerabilities"
+  
+  # Create incident ticket
+  curl -X POST $JIRA_API/issue -H "Content-Type: application/json" -d '{
+    "fields": {
+      "project": {"key": "SEC"},
+      "summary": "Security vulnerabilities in dependencies",
+      "description": "Found '"$CRITICAL"' critical and '"$HIGH"' high vulnerabilities",
+      "issuetype": {"name": "Bug"},
+      "priority": {"name": "Critical"}
+    }
+  }'
+fi
+
+# 3. Check for suspicious packages
+echo "3️⃣  Checking for suspicious patterns..."
+lockcheck --detect-suspicious --json > suspicious-check.json
+
+SUSPICIOUS=$(jq '.suspicious | length' suspicious-check.json)
+if [ "$SUSPICIOUS" -gt 0 ]; then
+  echo "⚠️  Found $SUSPICIOUS suspicious packages"
+  jq '.suspicious' suspicious-check.json
+fi
+
+# 4. Verify package sources
+echo "4️⃣  Verifying package registry sources..."
+lockcheck --verify-sources --json > source-check.json
+
+UNTRUSTED=$(jq '.untrusted | length' source-check.json)
+if [ "$UNTRUSTED" -gt 0 ]; then
+  echo "⚠️  Found $UNTRUSTED packages from untrusted sources"
+  jq '.untrusted' source-check.json
+fi
+
+echo "✅ Supply chain security check complete"
+```
+
+**Continuous monitoring (GitHub Actions):**
+```yaml
+# .github/workflows/supply-chain-monitor.yml
+name: Supply Chain Security Monitor
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run security checks
+        run: bash scripts/supply-chain-monitor.sh
+        env:
+          SLACK_SECURITY_WEBHOOK: ${{ secrets.SLACK_SECURITY_WEBHOOK }}
+          JIRA_API: ${{ secrets.JIRA_API }}
+      
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-results
+          path: |
+            integrity-check.json
+            vuln-check.json
+            suspicious-check.json
+            source-check.json
+      
+      - name: Historical tracking
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          mkdir -p .security-history
+          cp *-check.json .security-history/$DATE/
+          git add .security-history
+          git commit -m "chore: security scan $DATE" || true
+```
+
+**Result:** Continuous security monitoring, automatic alerts, historical tracking.
+
+### Workflow 4: Lock File Forensics
+
+**Scenario:** Investigate when and how a vulnerable package was introduced.
+
+**Tool:**
+```bash
+#!/bin/bash
+# scripts/lock-forensics.sh
+
+PACKAGE=$1
+
+if [ -z "$PACKAGE" ]; then
+  echo "Usage: $0 <package-name>"
+  exit 1
+fi
+
+echo "🔍 Lock File Forensics: $PACKAGE"
+echo ""
+
+# 1. When was it introduced?
+echo "1️⃣  Finding when $PACKAGE was added..."
+FIRST_COMMIT=$(git log --all --oneline --diff-filter=A -- package-lock.json | \
+  grep -B 1 "$PACKAGE" | head -1 | awk '{print $1}')
+
+if [ -n "$FIRST_COMMIT" ]; then
+  echo "   First appearance: $FIRST_COMMIT"
+  git show $FIRST_COMMIT --stat
+else
+  echo "   Not found in git history (may be in initial commit)"
+fi
+
+# 2. Version history
+echo ""
+echo "2️⃣  Version history..."
+git log --all --oneline -- package-lock.json | while read commit; do
+  COMMIT_SHA=$(echo $commit | awk '{print $1}')
+  VERSION=$(git show $COMMIT_SHA:package-lock.json | \
+    jq -r ".packages.\"node_modules/$PACKAGE\".version" 2>/dev/null)
+  
+  if [ -n "$VERSION" ] && [ "$VERSION" != "null" ]; then
+    DATE=$(git show -s --format=%ci $COMMIT_SHA)
+    AUTHOR=$(git show -s --format=%an $COMMIT_SHA)
+    echo "   $DATE | $VERSION | $AUTHOR | $COMMIT_SHA"
+  fi
+done | head -10
+
+# 3. Dependency path (why was it installed?)
+echo ""
+echo "3️⃣  Dependency path (what requires $PACKAGE)..."
+npm ls $PACKAGE 2>/dev/null || echo "   Direct dependency"
+
+# 4. Check for known vulnerabilities in historical versions
+echo ""
+echo "4️⃣  Vulnerability history..."
+npm audit --json | jq -r ".vulnerabilities.\"$PACKAGE\" // empty"
+
+# 5. Check if still needed
+echo ""
+echo "5️⃣  Current status..."
+depcheck-lite --json | jq -r ".unused[] | select(.name == \"$PACKAGE\") | \"⚠️  Currently UNUSED\""
+
+# 6. Suggest action
+echo ""
+echo "6️⃣  Recommendation:"
+if npm audit --json | jq -e ".vulnerabilities.\"$PACKAGE\"" > /dev/null 2>&1; then
+  echo "   ❌ VULNERABLE - Update or remove immediately"
+  echo "   Run: npm update $PACKAGE"
+elif depcheck-lite --json | jq -e ".unused[] | select(.name == \"$PACKAGE\")" > /dev/null 2>&1; then
+  echo "   🗑️  UNUSED - Safe to remove"
+  echo "   Run: npm uninstall $PACKAGE"
+else
+  echo "   ✅ USED and secure - No action needed"
+fi
+```
+
+**Usage:**
+```bash
+# Investigate a specific package
+bash scripts/lock-forensics.sh minimist
+
+# Output:
+# 🔍 Lock File Forensics: minimist
+# 
+# 1️⃣  Finding when minimist was added...
+#    First appearance: a3f2b1c
+#    Author: john@example.com
+#    Date: 2021-03-15
+# 
+# 2️⃣  Version history...
+#    2021-03-15 | 1.2.5 | John Doe | a3f2b1c
+#    2022-01-10 | 1.2.6 | Jane Smith | f7d3e2a
+# 
+# 3️⃣  Dependency path...
+#    mocha > yargs > minimist
+# 
+# 4️⃣  Vulnerability history...
+#    CVE-2021-44906 (Critical): Prototype pollution
+# 
+# 5️⃣  Current status...
+#    Used by mocha (devDependency)
+# 
+# 6️⃣  Recommendation:
+#    ❌ VULNERABLE - Update or remove immediately
+#    Run: npm update mocha
+```
+
+**Result:** Complete forensic analysis, understand dependency history, informed decisions.
+
+## Pro Tips & Tricks
+
+### Tip 1: Lock File Diff Visualization
+
+```bash
+# Compare lock files between branches
+git diff main feature-branch -- package-lock.json
+
+# But it's hard to read. Use lockcheck:
+lockcheck diff --base main --current feature-branch --format visual
+
+# Output (visual treemap):
+# ┌────────────────────────────────────────┐
+# │ Added (3)        │ Updated (5)         │
+# │ • new-package    │ • express 4.17→4.18 │
+# │ • another-pkg    │ • axios 0.27→1.4    │
+# │ • third-pkg      │ ...                 │
+# └────────────────────────────────────────┘
+# │ Removed (2)      │ Unchanged (235)     │
+# │ • old-package    │ ...                 │
+# │ • legacy-pkg     │                     │
+# └────────────────────────────────────────┘
+
+# JSON format for scripting
+lockcheck diff --base main --current HEAD --json > diff.json
+jq '.added[] | .name' diff.json
+```
+
+### Tip 2: Lock File as Documentation
+
+```bash
+# Extract dependency info for documentation
+lockcheck export --format markdown > DEPENDENCIES.md
+
+# Generates:
+# # Project Dependencies
+# 
+# ## Production Dependencies (15)
+# 
+# | Package | Version | Description |
+# |---------|---------|-------------|
+# | express | 4.18.2 | Web framework |
+# | axios | 1.4.0 | HTTP client |
+# ...
+# 
+# ## Development Dependencies (28)
+# ...
+# 
+# Last updated: 2024-02-09
+
+# Commit to repository
+git add DEPENDENCIES.md
+git commit -m "docs: update dependency documentation"
+```
+
+### Tip 3: Pre-release Lock File Snapshot
+
+```bash
+# Before releasing, snapshot lock file state
+lockcheck snapshot --tag v1.2.3 --save
+
+# Stored in .lockcheck-snapshots/v1.2.3.json
+
+# Later, compare with snapshot
+lockcheck compare --snapshot v1.2.3
+
+# Output:
+# Comparing current lock file with snapshot v1.2.3
+# 
+# Changes:
+#   ✅ 5 packages updated (patch/minor)
+#   ⚠️  2 packages updated (major)
+#   ❌ 1 security vulnerability introduced
+# 
+# Recommendation: Review major updates before release
+```
+
+### Tip 4: Lock File Health Score
+
+```bash
+# Get overall health score (0-100)
+SCORE=$(lockcheck health --json | jq '.score')
+
+echo "Lock file health: $SCORE/100"
+
+# Factors:
+# - No version mismatches (+20)
+# - No security vulnerabilities (+30)
+# - All integrity checksums present (+20)
+# - No duplicate versions (+15)
+# - Recent updates (+15)
+
+# Use in CI
+if [ "$SCORE" -lt 80 ]; then
+  echo "⚠️  Lock file health below threshold"
+  lockcheck health --verbose
+fi
+```
+
+### Tip 5: Automated Lock File Optimization
+
+```bash
+# Optimize lock file (dedupe, clean, etc.)
+lockcheck optimize
+
+# What it does:
+# 1. Removes duplicate package versions
+# 2. Cleans up orphaned entries
+# 3. Sorts for minimal git diffs
+# 4. Validates integrity
+
+# Before:
+# - Size: 2.4 MB
+# - Packages: 1,243 (358 duplicates)
+# - Git diff: 450 lines
+
+# After:
+# - Size: 1.8 MB (↓25%)
+# - Packages: 885 (no duplicates)
+# - Git diff: 12 lines
+```
+
+### Tip 6: Lock File Test Matrix
+
+```bash
+# Test lock file compatibility across Node versions
+# .github/workflows/lock-test.yml
+
+strategy:
+  matrix:
+    node: [16, 18, 20]
+    os: [ubuntu-latest, windows-latest, macos-latest]
+
+steps:
+  - uses: actions/setup-node@v3
+    with:
+      node-version: ${{ matrix.node }}
+  
+  - name: Test lock file
+    run: |
+      npm ci
+      lockcheck --verify-integrity
+      npm test
+
+# Ensures lock file works across environments
+```
+
+### Tip 7: Lock File Rollback
+
+```bash
+# Oh no, new lock file breaks everything!
+
+# Quick rollback
+lockcheck rollback
+
+# What it does:
+# 1. Finds last working lock file in git history
+# 2. Restores it
+# 3. Runs npm ci
+# 4. Validates
+
+# Or manual:
+git log --oneline -- package-lock.json | head -5
+# Find last good commit
+git checkout abc123 -- package-lock.json
+npm ci
+```
+
+### Tip 8: Lock File Metrics Over Time
+
+```bash
+# Track lock file metrics
+#!/bin/bash
+# scripts/track-lock-metrics.sh
+
+DATE=$(date +%Y-%m-%d)
+METRICS=$(lockcheck analyze --json)
+
+echo "$DATE,$(echo $METRICS | jq -r '.size'),$(echo $METRICS | jq -r '.packages'),$(echo $METRICS | jq -r '.vulnerabilities')" \
+  >> .lock-metrics.csv
+
+# Visualize
+gnuplot << EOF
+set datafile separator ","
+set xdata time
+set timefmt "%Y-%m-%d"
+set format x "%m/%d"
+set terminal png size 1000,400
+set output "lock-metrics.png"
+set multiplot layout 1,3
+set title "Lock File Size"
+plot ".lock-metrics.csv" using 1:2 with lines
+set title "Package Count"
+plot ".lock-metrics.csv" using 1:3 with lines
+set title "Vulnerabilities"
+plot ".lock-metrics.csv" using 1:4 with lines
+EOF
+```
+
+### Tip 9: Lock File Documentation Generator
+
+```bash
+# Generate human-readable lock file summary
+lockcheck explain --interactive
+
+# Interactive mode:
+# ? What do you want to know about your lock file?
+#   > What is express used for?
+#     express@4.18.2
+#     └─ Used by: src/server.js, src/routes/api.js
+#     └─ Dependencies: 57 packages
+#     └─ Description: Fast, unopinionated web framework
+# 
+#   > Why is minimist version 1.2.5 installed?
+#     minimist@1.2.5
+#     └─ Required by: mocha@9.2.0
+#     └─ Version constraint: >=1.2.0
+#     └─ ⚠️  Known vulnerability: CVE-2021-44906
+# 
+#   > Show me all packages using lodash
+#     lodash@4.17.21
+#     └─ Used by:
+#        • src/utils/helpers.js
+#        • src/services/data-processor.js
+#        • node_modules/async/lib/internal.js
+```
+
+### Tip 10: Lock File as CI Cache Key
+
+```bash
+# Use lock file hash as cache key (better than package.json)
+# .github/workflows/ci.yml
+
+- uses: actions/cache@v3
+  with:
+    path: node_modules
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+    restore-keys: |
+      ${{ runner.os }}-node-
+
+# Why better than package.json:
+# - package.json: ^1.0.0 (range, could install 1.0.1 or 1.0.9)
+# - package-lock.json: exact version (1.0.5)
+# - More accurate cache, fewer CI failures
+
+# Pro tip: Include Node version too
+key: ${{ runner.os }}-node-${{ matrix.node }}-${{ hashFiles('**/package-lock.json') }}
+```
+
 ## Roadmap
 
 - [ ] **Bun lockb support** - Support Bun's binary lock file format

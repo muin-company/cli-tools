@@ -960,6 +960,603 @@ fi
 
 See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
+## Advanced Workflows
+
+### Workflow 1: Performance Budget Enforcement in Multi-Stage CI
+
+**Scenario:** Large team, multiple environments (dev, staging, prod), need different size budgets per environment.
+
+**Setup:**
+```json
+// .bundlesize.config.js
+module.exports = {
+  environments: {
+    dev: {
+      maxSize: "500kb",     // Relaxed for development
+      failOnExceed: false
+    },
+    staging: {
+      maxSize: "300kb",     // Stricter
+      failOnExceed: true,
+      threshold: 10
+    },
+    production: {
+      maxSize: "250kb",     // Strictest
+      maxGzip: "80kb",
+      failOnExceed: true,
+      threshold: 3
+    }
+  }
+};
+```
+
+**CI Pipeline (.github/workflows/bundle-check.yml):**
+```yaml
+name: Bundle Size Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  check-bundle:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [dev, staging, production]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Build for ${{ matrix.env }}
+        run: npm run build:${{ matrix.env }}
+      
+      - name: Check bundle size
+        run: |
+          bundlesize check \
+            --config .bundlesize.config.js \
+            --env ${{ matrix.env }} \
+            --json > bundle-result-${{ matrix.env }}.json
+      
+      - name: Compare with main branch
+        run: |
+          git fetch origin main
+          git checkout main
+          npm run build:${{ matrix.env }}
+          bundlesize analyze dist/*.js --json > baseline.json
+          git checkout -
+          
+          bundlesize compare \
+            --current bundle-result-${{ matrix.env }}.json \
+            --baseline baseline.json \
+            --threshold 5
+      
+      - name: Comment on PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync('bundle-result-${{ matrix.env }}.json'));
+            const comment = `
+            ## 📊 Bundle Size Report (${{ matrix.env }})
+            
+            **Size:** ${result.size} (${result.gzip} gzipped)
+            **Change:** ${result.change > 0 ? '+' : ''}${result.change} KB
+            **Status:** ${result.withinLimit ? '✅ Pass' : '❌ Fail'}
+            `;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+```
+
+**Result:** Different budgets per environment, automatic PR comments, blocks merges if production budget exceeded.
+
+### Workflow 2: Automated Dependency Replacement Bot
+
+**Scenario:** Continuously monitor for large dependencies and suggest lighter alternatives.
+
+**Script (scripts/bundle-optimizer.js):**
+```javascript
+#!/usr/bin/env node
+const { execSync } = require('child_process');
+const fs = require('fs');
+
+// Known heavy dependencies and their lighter alternatives
+const alternatives = {
+  'moment': { replacement: 'date-fns', saving: '85 KB' },
+  'lodash': { replacement: 'lodash-es', saving: '45 KB' },
+  'axios': { replacement: 'ky', saving: '20 KB' },
+  'request': { replacement: 'node-fetch', saving: '150 KB' },
+  'jquery': { replacement: 'cash-dom', saving: '85 KB' }
+};
+
+// Analyze current bundle
+const result = JSON.parse(
+  execSync('bundlesize analyze dist/main.js --json').toString()
+);
+
+const suggestions = [];
+for (const dep of result.dependencies) {
+  if (alternatives[dep.name]) {
+    const alt = alternatives[dep.name];
+    suggestions.push({
+      remove: dep.name,
+      add: alt.replacement,
+      saving: alt.saving
+    });
+  }
+}
+
+if (suggestions.length > 0) {
+  // Create GitHub issue
+  const issueBody = `
+# 🎯 Bundle Optimization Opportunity
+
+Found ${suggestions.length} dependencies that could be replaced:
+
+${suggestions.map(s => `
+## ${s.remove} → ${s.add}
+- **Potential saving:** ${s.saving}
+- **Action:** \`npm uninstall ${s.remove} && npm install ${s.add}\`
+`).join('\n')}
+
+**Total potential savings:** ${suggestions.reduce((sum, s) => 
+  sum + parseInt(s.saving), 0)} KB
+  `;
+  
+  execSync(`gh issue create --title "Bundle optimization suggestions" --body "${issueBody}"`);
+}
+```
+
+**Cron Job:**
+```yaml
+# .github/workflows/bundle-optimizer.yml
+name: Bundle Optimizer Bot
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Every Monday at midnight
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Analyze bundles
+        run: node scripts/bundle-optimizer.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Result:** Weekly automated suggestions to replace heavy dependencies, creates GitHub issues with actionable steps.
+
+### Workflow 3: Bundle Size Regression Testing
+
+**Scenario:** Prevent accidental bundle bloat in feature branches.
+
+**Setup:**
+```bash
+# Install bundlesize as dev dependency
+npm install --save-dev @muin/bundlesize
+
+# Add to package.json scripts
+{
+  "scripts": {
+    "test:size": "bundlesize check --fail-on-increase",
+    "test:size:update-baseline": "bundlesize track --save"
+  }
+}
+```
+
+**Pre-merge Hook:**
+```bash
+#!/bin/bash
+# .git/hooks/pre-merge-commit
+
+echo "🔍 Checking bundle size before merge..."
+
+# Build the bundle
+npm run build
+
+# Compare with main branch
+git fetch origin main
+MAIN_SIZE=$(git show origin/main:bundle-size-baseline.json | jq '.size')
+CURRENT_SIZE=$(bundlesize analyze dist/main.js --json | jq '.size')
+
+DIFF=$((CURRENT_SIZE - MAIN_SIZE))
+PERCENT=$((DIFF * 100 / MAIN_SIZE))
+
+if [ $PERCENT -gt 5 ]; then
+  echo "❌ Bundle size increased by $PERCENT% (${DIFF} KB)"
+  echo "   Main: ${MAIN_SIZE} KB"
+  echo "   Current: ${CURRENT_SIZE} KB"
+  echo ""
+  echo "   Run 'npm run test:size' for details"
+  exit 1
+fi
+
+echo "✅ Bundle size acceptable (${PERCENT}% change)"
+```
+
+**Result:** Catches size regressions before merging, ensures main branch always has optimal bundle size.
+
+### Workflow 4: Performance Monitoring Dashboard
+
+**Scenario:** Track bundle size trends across multiple projects in a single dashboard.
+
+**Setup (monitoring/dashboard.js):**
+```javascript
+const express = require('express');
+const { execSync } = require('child_process');
+const fs = require('fs');
+
+const app = express();
+const PORT = 3000;
+
+// Projects to monitor
+const projects = [
+  { name: 'main-app', path: '../main-app' },
+  { name: 'admin-panel', path: '../admin-panel' },
+  { name: 'mobile-web', path: '../mobile-web' }
+];
+
+app.get('/api/bundle-sizes', (req, res) => {
+  const results = [];
+  
+  for (const project of projects) {
+    const cwd = project.path;
+    
+    // Get current size
+    const current = JSON.parse(
+      execSync('bundlesize analyze dist/main.js --json', { cwd }).toString()
+    );
+    
+    // Get historical data
+    const history = fs.existsSync(`${cwd}/.bundlesize-history.json`)
+      ? JSON.parse(fs.readFileSync(`${cwd}/.bundlesize-history.json`))
+      : [];
+    
+    results.push({
+      project: project.name,
+      current: current.size,
+      gzip: current.gzip,
+      history: history.slice(-30), // Last 30 days
+      trend: calculateTrend(history)
+    });
+  }
+  
+  res.json(results);
+});
+
+app.use(express.static('public'));
+
+app.listen(PORT, () => {
+  console.log(`Dashboard running at http://localhost:${PORT}`);
+});
+```
+
+**Dashboard UI (public/index.html):**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Bundle Size Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h1>Bundle Size Dashboard</h1>
+  <div id="charts"></div>
+  
+  <script>
+    fetch('/api/bundle-sizes')
+      .then(r => r.json())
+      .then(data => {
+        data.forEach(project => {
+          const ctx = document.createElement('canvas');
+          document.getElementById('charts').appendChild(ctx);
+          
+          new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: project.history.map(h => h.date),
+              datasets: [{
+                label: project.project,
+                data: project.history.map(h => h.size),
+                borderColor: project.trend > 0 ? 'red' : 'green'
+              }]
+            }
+          });
+        });
+      });
+  </script>
+</body>
+</html>
+```
+
+**Result:** Real-time dashboard showing bundle size trends across all projects, early warning system for size bloat.
+
+## Pro Tips & Tricks
+
+### Tip 1: Use Compression-Aware Code Splitting
+
+**Problem:** Code splitting doesn't always reduce bundle size if chunks are too small (compression overhead).
+
+**Solution:**
+```javascript
+// webpack.config.js
+module.exports = {
+  optimization: {
+    splitChunks: {
+      chunks: 'all',
+      minSize: 30000,  // 30 KB minimum (good for gzip)
+      maxSize: 244000, // 244 KB maximum (optimal for HTTP/2)
+      minChunks: 1,
+      cacheGroups: {
+        defaultVendors: {
+          test: /[\\/]node_modules[\\/]/,
+          priority: -10,
+          reuseExistingChunk: true,
+        },
+        common: {
+          minChunks: 2,
+          priority: -20,
+          reuseExistingChunk: true,
+        },
+      },
+    },
+  },
+};
+```
+
+**Test:**
+```bash
+# Before optimization
+bundlesize analyze dist/*.js --compression both
+
+# After optimization
+bundlesize analyze dist/*.js --compression both --show-savings
+
+# Look for "Compression efficiency" metric
+```
+
+**Why it works:** Chunks between 30-244 KB have best compression ratio. Smaller chunks waste overhead, larger chunks hurt caching.
+
+### Tip 2: Tree-Shaking Verification
+
+**Problem:** Tree-shaking enabled but bundle still large.
+
+**Solution:**
+```bash
+# Check what's actually being tree-shaken
+bundlesize analyze dist/main.js --show-treeshaking
+
+# Example output:
+# ✅ lodash-es: 90% tree-shaken (saved 85 KB)
+# ❌ lodash: 0% tree-shaken (can't tree-shake CommonJS)
+# ⚠️  react: Partial (some unused components remain)
+
+# Fix by using ESM versions
+npm install lodash-es  # Instead of lodash
+```
+
+**Verify:**
+```bash
+# Check import statements
+grep -r "import.*from 'lodash'" src/
+# Should be: import { debounce } from 'lodash-es'
+# Not: import _ from 'lodash'
+```
+
+### Tip 3: Dynamic Import Analysis
+
+**Problem:** Don't know which route bundles are largest.
+
+**Solution:**
+```bash
+# Analyze lazy-loaded chunks
+bundlesize analyze dist/*.chunk.js --sort-by-size
+
+# Output shows:
+# 1. route-dashboard.chunk.js  345 KB  (🔴 Too large!)
+# 2. route-settings.chunk.js   89 KB   (✅ Good)
+# 3. route-profile.chunk.js    67 KB   (✅ Good)
+
+# Drill down into largest chunk
+bundlesize treemap dist/route-dashboard.chunk.js
+
+# Find heavy component and split further:
+# Before:
+const Dashboard = lazy(() => import('./Dashboard'));
+
+# After:
+const DashboardShell = lazy(() => import('./Dashboard/Shell'));
+const DashboardCharts = lazy(() => import('./Dashboard/Charts'));
+```
+
+### Tip 4: Measure Real-World Impact
+
+**Problem:** Bundle size looks good but page still loads slowly.
+
+**Solution:**
+```bash
+# Bundle size is just one metric. Measure actual load time:
+
+# 1. Test on real device (simulate 3G)
+bundlesize analyze dist/main.js --network-simulation 3g
+
+# Output:
+# Download time (3G): 12.3 seconds  (🔴 Too slow!)
+# Download time (4G): 3.1 seconds   (⚠️  Acceptable)
+# Download time (WiFi): 0.8 seconds (✅ Fast)
+
+# 2. Calculate interactive time
+bundlesize analyze dist/main.js --include-parse-time
+
+# Output:
+# Download + Parse + Execute: 15.7 seconds
+# ^ This is what users actually experience
+
+# 3. Set budget based on target time
+bundlesize check --target-load-time 3s --network 3g
+```
+
+### Tip 5: Automated Alerts for Size Jumps
+
+**Problem:** Bundle grows slowly over time, no one notices until it's too late.
+
+**Solution:**
+```bash
+# Set up automatic alerts
+# Add to CI (Slack example)
+
+bundlesize compare --baseline main --json > result.json
+
+CHANGE=$(jq '.percentChange' result.json)
+
+if (( $(echo "$CHANGE > 2" | bc -l) )); then
+  curl -X POST $SLACK_WEBHOOK -d '{
+    "text": "⚠️ Bundle size increased by '"$CHANGE"'%",
+    "attachments": [{
+      "color": "warning",
+      "fields": [
+        {"title": "Change", "value": "'"$CHANGE"'%", "short": true},
+        {"title": "Size", "value": "'"$(jq '.current.size' result.json)"' KB", "short": true}
+      ]
+    }]
+  }'
+fi
+```
+
+**Or use email:**
+```bash
+# Install sendmail or use service
+if [ "$CHANGE" -gt 5 ]; then
+  echo "Bundle grew by $CHANGE%. Review dependencies." | \
+    mail -s "🚨 Bundle Size Alert" team@company.com
+fi
+```
+
+### Tip 6: Bundle Size as a Code Review Metric
+
+**Problem:** Reviewers don't consider bundle size impact when reviewing PRs.
+
+**Solution:**
+```yaml
+# Add to .github/workflows/pr-review.yml
+- name: Bundle size check
+  run: |
+    bundlesize compare --base ${{ github.base_ref }} --format markdown > size-comment.md
+    
+    # Add label based on size change
+    CHANGE=$(bundlesize compare --base ${{ github.base_ref }} --json | jq '.percentChange')
+    
+    if (( $(echo "$CHANGE > 10" | bc -l) )); then
+      gh pr edit ${{ github.event.pull_request.number }} --add-label "size:large"
+      gh pr review ${{ github.event.pull_request.number }} --comment -b "⚠️ This PR increases bundle size by $CHANGE%. Please review."
+    elif (( $(echo "$CHANGE < -5" | bc -l) )); then
+      gh pr edit ${{ github.event.pull_request.number }} --add-label "size:reduced"
+    fi
+    
+    gh pr comment ${{ github.event.pull_request.number }} -F size-comment.md
+```
+
+**Result:** Every PR automatically shows bundle impact, large increases require explanation.
+
+### Tip 7: Incremental Bundle Analysis (for CI Speed)
+
+**Problem:** Full bundle analysis too slow for CI (20+ seconds).
+
+**Solution:**
+```bash
+# Use cache and incremental analysis
+bundlesize analyze dist/main.js \
+  --cache \
+  --incremental \
+  --changed-files-only
+
+# On first run: 20 seconds
+# On subsequent runs with cache: 2 seconds
+
+# Cache persists across CI runs
+- uses: actions/cache@v3
+  with:
+    path: .bundlesize-cache
+    key: bundlesize-${{ hashFiles('**/package-lock.json') }}
+```
+
+### Tip 8: Polyfill Optimization
+
+**Problem:** Polyfills add 50+ KB but most users don't need them.
+
+**Solution:**
+```bash
+# Analyze polyfill usage
+bundlesize analyze dist/polyfills.js --show-usage
+
+# Output:
+# core-js/es/promise: 15 KB (needed by 5% of users)
+# core-js/es/array/includes: 2 KB (needed by 2% of users)
+# whatwg-fetch: 8 KB (needed by 10% of users)
+
+# Use differential loading
+# Modern bundle (no polyfills): 200 KB
+# Legacy bundle (with polyfills): 265 KB
+
+# Only 10% of users download legacy bundle → avg 206.5 KB
+bundlesize check dist/modern.js --max-size 210kb
+bundlesize check dist/legacy.js --max-size 280kb
+```
+
+### Tip 9: Third-Party Script Auditing
+
+**Problem:** You optimized your code, but third-party scripts are huge.
+
+**Solution:**
+```bash
+# Analyze external scripts
+bundlesize analyze-external \
+  --script https://cdn.example.com/widget.js \
+  --script https://analytics.example.com/track.js
+
+# Output:
+# External scripts total: 387 KB
+# 1. analytics.example.com: 245 KB (🔴 Very large!)
+# 2. cdn.example.com: 142 KB
+#
+# Recommendations:
+# - Load analytics.example.com async
+# - Consider self-hosting to enable compression
+# - Use lighter alternative like Plausible (< 1 KB)
+```
+
+### Tip 10: Visual Regression for Bundle Size
+
+**Problem:** Hard to explain bundle size impact to non-technical stakeholders.
+
+**Solution:**
+```bash
+# Generate visual report
+bundlesize report dist/main.js \
+  --format html \
+  --include-visualizations \
+  --output report.html
+
+# Report includes:
+# - Treemap showing largest modules
+# - Pie chart of dependency categories
+# - Timeline of size changes
+# - Comparison with popular sites
+#   "Your bundle: 247 KB"
+#   "Twitter: 856 KB"
+#   "Facebook: 1.2 MB"
+#   "Medium: 432 KB"
+
+# Share with stakeholders
+npx serve report.html
+```
+
 ## Roadmap
 
 ### v1.1.0 (Next)

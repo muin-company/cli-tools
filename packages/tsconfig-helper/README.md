@@ -2478,6 +2478,992 @@ tsconfig-helper analyze --dependencies
 ╰─────────────────────────────────────────────────────────────────╯
 ```
 
+## Production-Grade Workflows
+
+### Workflow 1: Zero-Downtime TypeScript Version Upgrade
+
+**Scenario:** Upgrade from TypeScript 4.9 to 5.3 in a large production codebase without breaking existing builds.
+
+**Strategy: Incremental Rollout**
+
+```bash
+#!/bin/bash
+# scripts/ts-upgrade.sh
+
+set -e
+
+echo "🚀 TypeScript 5.3 Upgrade Plan"
+echo "Current version: $(npx tsc --version)"
+
+# Phase 1: Analysis (Week 1)
+echo "📊 Phase 1: Analyzing impact..."
+
+# Generate migration report
+tsconfig-helper migrate --target 5.3 --dry-run --output upgrade-report.md
+
+# Identify deprecated options
+DEPRECATED=$(tsconfig-helper validate --check-deprecated --format json | \
+  jq -r '.deprecated | length')
+
+echo "Found $DEPRECATED deprecated options"
+
+# Estimate effort
+echo "Estimated effort: ~2-3 weeks for full migration"
+
+# Phase 2: Preparation (Week 1-2)
+echo "🔧 Phase 2: Preparing environment..."
+
+# Install TypeScript 5.3 alongside 4.9
+npm install --save-dev typescript-5.3@npm:typescript@5.3
+
+# Create new tsconfig for testing
+cp tsconfig.json tsconfig.v5.json
+tsconfig-helper migrate --config tsconfig.v5.json --target 5.3 --apply
+
+# Run parallel type-checking
+echo "Running parallel type-checks..."
+npx tsc-4.9 --noEmit &  # Old version
+npx tsc-5.3 -p tsconfig.v5.json --noEmit &  # New version
+wait
+
+# Compare results
+echo "Comparing type-check results..."
+# (capture and diff the outputs)
+
+# Phase 3: Incremental Migration (Week 2-3)
+echo "📦 Phase 3: Migrating packages..."
+
+# For monorepos: migrate one package at a time
+PACKAGES=(shared utils api web mobile)
+
+for PKG in "${PACKAGES[@]}"; do
+  echo "Migrating packages/$PKG..."
+  
+  # Update package-specific tsconfig
+  cd packages/$PKG
+  tsconfig-helper migrate --target 5.3 --apply --backup
+  
+  # Test with TS 5.3
+  npx tsc-5.3 --noEmit || {
+    echo "❌ Migration failed for $PKG"
+    echo "Restoring backup..."
+    mv tsconfig.json.backup tsconfig.json
+    exit 1
+  }
+  
+  echo "✅ $PKG migrated successfully"
+  cd ../..
+  
+  # Run full test suite
+  npm run test:$PKG
+done
+
+# Phase 4: Validation (Week 3)
+echo "✅ Phase 4: Final validation..."
+
+# Update root package.json
+npm uninstall typescript-4.9
+npm install --save-dev typescript@5.3
+
+# Update all configs
+find . -name "tsconfig*.json" -not -path "*/node_modules/*" | while read CONFIG; do
+  tsconfig-helper migrate --config "$CONFIG" --target 5.3 --apply
+done
+
+# Full regression test
+npm run test:all
+npm run build:all
+
+# Performance comparison
+echo "📊 Performance comparison:"
+echo "TypeScript 4.9: (previous baseline)"
+echo "TypeScript 5.3: (measuring...)"
+time npx tsc --noEmit
+
+# Phase 5: Rollout (Week 4)
+echo "🚀 Phase 5: Production rollout..."
+
+# Deploy to staging
+./deploy.sh staging
+
+# Monitor for 48 hours
+echo "🔍 Monitoring staging for 48 hours..."
+echo "Check for:"
+echo "  - Build failures"
+echo "  - Type errors in CI"
+echo "  - Runtime issues"
+echo "  - Performance regressions"
+
+# If all clear, deploy to production
+echo "Waiting for approval..."
+read -p "Deploy to production? (yes/no): " CONFIRM
+
+if [ "$CONFIRM" = "yes" ]; then
+  ./deploy.sh production
+  echo "✅ TypeScript 5.3 deployed to production"
+else
+  echo "❌ Deployment cancelled"
+  exit 1
+fi
+
+# Phase 6: Cleanup
+echo "🧹 Phase 6: Cleanup..."
+
+# Remove backup configs
+find . -name "tsconfig.json.backup*" -delete
+
+# Update documentation
+echo "📝 Updating documentation..."
+cat >> CHANGELOG.md << EOF
+
+## TypeScript 5.3 Upgrade - $(date +%Y-%m-%d)
+
+### Changes
+- Upgraded from TypeScript 4.9 to 5.3
+- Migrated deprecated options:
+  - \`importsNotUsedAsValues\` → \`verbatimModuleSyntax\`
+  - \`moduleResolution: "node"\` → \`moduleResolution: "bundler"\`
+- Added new options:
+  - \`allowImportingTsExtensions: true\`
+  - \`resolvePackageJsonExports: true\`
+
+### Performance
+- Type-checking: 15% faster
+- Build time: 12% faster
+- Memory usage: 8% reduction
+
+### Breaking Changes
+None - all existing code continues to work.
+
+EOF
+
+echo "✅ Upgrade complete!"
+```
+
+**Rollback Plan:**
+```bash
+#!/bin/bash
+# scripts/rollback-ts-upgrade.sh
+
+echo "⚠️  Rolling back to TypeScript 4.9..."
+
+# Restore old version
+npm install --save-dev typescript@4.9
+
+# Restore backup configs
+find . -name "tsconfig.json.backup*" | while read BACKUP; do
+  ORIGINAL="${BACKUP%.backup*}"
+  mv "$BACKUP" "$ORIGINAL"
+done
+
+# Rebuild
+npm run build:all
+
+echo "✅ Rolled back to TypeScript 4.9"
+```
+
+---
+
+### Workflow 2: Strict Mode Migration for Legacy Codebase
+
+**Scenario:** Enable strict mode incrementally in a 100k+ line codebase without stopping development.
+
+**Strategy: File-by-File Migration**
+
+```bash
+#!/bin/bash
+# scripts/enable-strict-mode.sh
+
+# Track progress
+STRICT_LOG=".strict-migration-log.json"
+
+if [ ! -f "$STRICT_LOG" ]; then
+  cat > "$STRICT_LOG" << 'EOF'
+{
+  "startDate": "$(date +%Y-%m-%d)",
+  "totalFiles": 0,
+  "migratedFiles": 0,
+  "filesInProgress": [],
+  "completedFiles": [],
+  "options": {
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictFunctionTypes": false
+  }
+}
+EOF
+fi
+
+# Step 1: Baseline (no strict mode)
+cat > tsconfig.json << 'EOF'
+{
+  "compilerOptions": {
+    "strict": false,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}
+EOF
+
+# Step 2: Create strict overlay config
+cat > tsconfig.strict.json << 'EOF'
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": []  // Will be populated with migrated files
+}
+EOF
+
+# Step 3: Find migration candidates
+echo "🔍 Finding files to migrate..."
+
+# Start with files with fewest errors
+find src -name "*.ts" -not -name "*.test.ts" | while read FILE; do
+  ERROR_COUNT=$(npx tsc --noEmit "$FILE" 2>&1 | grep "error TS" | wc -l)
+  echo "$ERROR_COUNT|$FILE"
+done | sort -n > migration-candidates.txt
+
+# Step 4: Migrate in batches
+BATCH_SIZE=5
+CURRENT_BATCH=0
+
+while IFS='|' read -r ERRORS FILE; do
+  if [ $ERRORS -lt 10 ]; then  # Only auto-migrate files with <10 errors
+    echo "📝 Migrating $FILE ($ERRORS errors)..."
+    
+    # Add to strict config
+    jq --arg file "$FILE" '.include += [$file]' tsconfig.strict.json > tmp.json
+    mv tmp.json tsconfig.strict.json
+    
+    # Try to compile with strict mode
+    if npx tsc -p tsconfig.strict.json --noEmit "$FILE" 2>&1 | tee migration-errors.txt; then
+      echo "✅ $FILE migrated successfully"
+      
+      # Log success
+      jq --arg file "$FILE" '.migratedFiles += 1 | .completedFiles += [$file]' \
+        "$STRICT_LOG" > tmp.json
+      mv tmp.json "$STRICT_LOG"
+    else
+      # Revert if errors
+      echo "❌ $FILE has strict mode errors, skipping for now"
+      jq --arg file "$FILE" '.include -= [$file] | .filesInProgress += [$file]' \
+        tsconfig.strict.json > tmp.json
+      mv tmp.json tsconfig.strict.json
+    fi
+    
+    CURRENT_BATCH=$((CURRENT_BATCH + 1))
+    
+    # Pause after each batch for manual review
+    if [ $CURRENT_BATCH -ge $BATCH_SIZE ]; then
+      echo "📊 Progress: $(jq '.migratedFiles' "$STRICT_LOG") files migrated"
+      echo "Pause for review. Continue? (yes/no)"
+      read -r CONTINUE
+      if [ "$CONTINUE" != "yes" ]; then
+        break
+      fi
+      CURRENT_BATCH=0
+    fi
+  fi
+done < migration-candidates.txt
+
+# Step 5: Generate report
+echo "📊 Migration Report"
+echo "=================="
+TOTAL=$(find src -name "*.ts" | wc -l)
+MIGRATED=$(jq '.migratedFiles' "$STRICT_LOG")
+PERCENT=$((MIGRATED * 100 / TOTAL))
+echo "Progress: $MIGRATED/$TOTAL files ($PERCENT%)"
+echo ""
+echo "Files requiring manual review:"
+jq -r '.filesInProgress[]' "$STRICT_LOG"
+
+# Step 6: Update main config when >80% migrated
+if [ $PERCENT -gt 80 ]; then
+  echo "🎉 Over 80% migrated! Consider enabling strict mode globally."
+  echo "Review remaining files:"
+  comm -13 \
+    <(jq -r '.completedFiles[]' "$STRICT_LOG" | sort) \
+    <(find src -name "*.ts" | sort)
+fi
+```
+
+**Track Progress with Dashboard:**
+
+```typescript
+// scripts/strict-mode-dashboard.ts
+import * as fs from 'fs';
+import * as path from 'path';
+
+interface MigrationLog {
+  startDate: string;
+  totalFiles: number;
+  migratedFiles: number;
+  filesInProgress: string[];
+  completedFiles: string[];
+}
+
+function generateDashboard() {
+  const log: MigrationLog = JSON.parse(
+    fs.readFileSync('.strict-migration-log.json', 'utf-8')
+  );
+
+  const totalFiles = log.totalFiles;
+  const migrated = log.migratedFiles;
+  const inProgress = log.filesInProgress.length;
+  const remaining = totalFiles - migrated - inProgress;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Strict Mode Migration Progress</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; }
+    .progress-bar { width: 100%; height: 30px; background: #eee; border-radius: 5px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A); transition: width 0.3s; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin: 30px 0; }
+    .stat { text-align: center; padding: 20px; background: #f5f5f5; border-radius: 10px; }
+    .stat-value { font-size: 36px; font-weight: bold; color: #333; }
+    .stat-label { font-size: 14px; color: #666; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>🎯 Strict Mode Migration Progress</h1>
+  <p>Started: ${log.startDate}</p>
+  
+  <div class="progress-bar">
+    <div class="progress-fill" style="width: ${(migrated / totalFiles) * 100}%"></div>
+  </div>
+  <p style="text-align: center; margin-top: 10px;">${migrated} / ${totalFiles} files (${Math.round((migrated / totalFiles) * 100)}%)</p>
+  
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value" style="color: #4CAF50;">✅ ${migrated}</div>
+      <div class="stat-label">Migrated</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" style="color: #FF9800;">⏳ ${inProgress}</div>
+      <div class="stat-label">In Progress</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" style="color: #F44336;">❌ ${remaining}</div>
+      <div class="stat-label">Remaining</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" style="color: #2196F3;">${Math.round((migrated / totalFiles) * 100)}%</div>
+      <div class="stat-label">Complete</div>
+    </div>
+  </div>
+  
+  <h2>Recent Activity</h2>
+  <ul>
+    ${log.completedFiles.slice(-10).reverse().map(f => `<li>✅ ${f}</li>`).join('')}
+  </ul>
+  
+  <h2>Files Needing Attention</h2>
+  <ul>
+    ${log.filesInProgress.slice(0, 20).map(f => `<li>⏳ ${f}</li>`).join('')}
+  </ul>
+</body>
+</html>
+  `;
+
+  fs.writeFileSync('strict-mode-dashboard.html', html);
+  console.log('📊 Dashboard generated: strict-mode-dashboard.html');
+}
+
+generateDashboard();
+```
+
+---
+
+### Workflow 3: TypeScript Config Testing & Validation Pipeline
+
+**Scenario:** Ensure TypeScript configuration changes don't break builds across different environments.
+
+**Setup:**
+
+```yaml
+# .github/workflows/tsconfig-validation.yml
+name: TypeScript Config Validation
+
+on:
+  pull_request:
+    paths:
+      - 'tsconfig*.json'
+      - 'packages/**/tsconfig*.json'
+
+jobs:
+  validate-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Validate syntax
+        run: npx @muin/tsconfig-helper validate --strict
+      
+      - name: Check for deprecated options
+        run: |
+          DEPRECATED=$(npx @muin/tsconfig-helper validate --check-deprecated --format json | jq '.deprecated | length')
+          if [ "$DEPRECATED" -gt 0 ]; then
+            echo "::warning::Found $DEPRECATED deprecated options"
+          fi
+      
+      - name: Check strictness level
+        run: |
+          LEVEL=$(npx @muin/tsconfig-helper strictness --format json | jq -r '.level')
+          if [ "$LEVEL" -lt 3 ]; then
+            echo "::error::Strictness level too low: $LEVEL (minimum: 3)"
+            exit 1
+          fi
+      
+      - name: Validate path aliases
+        run: npx @muin/tsconfig-helper validate --check-paths
+      
+      - name: Compare with production config
+        run: |
+          npx @muin/tsconfig-helper compare \
+            tsconfig.json \
+            tsconfig.production.json \
+            --show-diff \
+            > config-diff.md
+          
+          # Post diff as PR comment
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body-file config-diff.md
+
+  test-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: [tsconfig.json, tsconfig.build.json, tsconfig.test.json]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm ci
+      
+      - name: Type-check with ${{ matrix.config }}
+        run: npx tsc -p ${{ matrix.config }} --noEmit
+      
+      - name: Build with ${{ matrix.config }}
+        if: matrix.config != 'tsconfig.test.json'
+        run: npx tsc -p ${{ matrix.config }}
+
+  performance-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - run: npm ci
+      
+      - name: Benchmark type-checking
+        run: |
+          echo "### Type-Check Performance" >> $GITHUB_STEP_SUMMARY
+          
+          # Before changes (main branch)
+          git fetch origin main
+          git checkout origin/main -- tsconfig.json
+          
+          echo "Baseline (main):"
+          time npx tsc --noEmit 2>&1 | tee baseline.txt
+          BASELINE_TIME=$(grep "real" baseline.txt | awk '{print $2}')
+          
+          # After changes (PR branch)
+          git checkout ${{ github.sha }} -- tsconfig.json
+          
+          echo "Current (PR):"
+          time npx tsc --noEmit 2>&1 | tee current.txt
+          CURRENT_TIME=$(grep "real" current.txt | awk '{print $2}')
+          
+          echo "| Config | Time |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Baseline | $BASELINE_TIME |" >> $GITHUB_STEP_SUMMARY
+          echo "| Current | $CURRENT_TIME |" >> $GITHUB_STEP_SUMMARY
+
+  breaking-change-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - uses: actions/setup-node@v3
+      - run: npm ci
+      
+      - name: Check for breaking changes
+        run: |
+          # Get changed tsconfig files
+          CHANGED=$(git diff --name-only origin/main...HEAD | grep "tsconfig.*\.json")
+          
+          for CONFIG in $CHANGED; do
+            echo "Checking $CONFIG for breaking changes..."
+            
+            # Compare strictness levels
+            git show origin/main:$CONFIG > old-config.json
+            OLD_STRICT=$(npx @muin/tsconfig-helper strictness --config old-config.json --format json | jq '.level')
+            NEW_STRICT=$(npx @muin/tsconfig-helper strictness --config $CONFIG --format json | jq '.level')
+            
+            if [ "$NEW_STRICT" -gt "$OLD_STRICT" ]; then
+              echo "::warning::$CONFIG increased strictness from $OLD_STRICT to $NEW_STRICT"
+              echo "This may introduce new type errors. Review carefully."
+            fi
+            
+            # Check for removed options
+            REMOVED=$(npx @muin/tsconfig-helper compare old-config.json $CONFIG --format json | \
+              jq -r '.removed[]')
+            
+            if [ -n "$REMOVED" ]; then
+              echo "::error::$CONFIG removed options: $REMOVED"
+              exit 1
+            fi
+          done
+```
+
+---
+
+### Workflow 4: Monorepo TypeScript Orchestration
+
+**Scenario:** Manage TypeScript configurations across 15+ packages in a monorepo with different requirements.
+
+**Setup:**
+
+```bash
+#!/bin/bash
+# scripts/setup-monorepo-ts.sh
+
+echo "🏗️  Setting up TypeScript monorepo configuration..."
+
+# 1. Create base config (shared by all packages)
+cat > tsconfig.base.json << 'EOF'
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Base",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020"],
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    
+    // Strict mode
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    
+    // Build
+    "incremental": true,
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  }
+}
+EOF
+
+# 2. Create environment-specific base configs
+cat > tsconfig.node.json << 'EOF'
+{
+  "display": "Node.js",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2020"],
+    "module": "CommonJS",
+    "moduleResolution": "node16",
+    "types": ["node"]
+  }
+}
+EOF
+
+cat > tsconfig.react.json << 'EOF'
+{
+  "display": "React",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["react", "react-dom"]
+  }
+}
+EOF
+
+cat > tsconfig.library.json << 'EOF'
+{
+  "display": "Library",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "removeComments": false,
+    "importHelpers": true
+  }
+}
+EOF
+
+# 3. Generate package-specific configs
+for PKG in packages/*; do
+  if [ ! -d "$PKG" ]; then continue; fi
+  
+  PKG_NAME=$(basename "$PKG")
+  echo "Setting up $PKG_NAME..."
+  
+  # Detect package type
+  if [ -f "$PKG/package.json" ]; then
+    PKG_TYPE=$(jq -r '.type // "commonjs"' "$PKG/package.json")
+    HAS_REACT=$(jq -r '.dependencies.react // empty' "$PKG/package.json")
+    IS_PRIVATE=$(jq -r '.private // false' "$PKG/package.json")
+  fi
+  
+  # Determine which base to extend
+  if [ -n "$HAS_REACT" ]; then
+    BASE="../../tsconfig.react.json"
+  elif [ "$IS_PRIVATE" = "false" ]; then
+    BASE="../../tsconfig.library.json"
+  else
+    BASE="../../tsconfig.node.json"
+  fi
+  
+  # Create package tsconfig
+  cat > "$PKG/tsconfig.json" << EOF
+{
+  "extends": "$BASE",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
+  "include": ["src"],
+  "exclude": ["dist", "node_modules", "**/*.spec.ts", "**/*.test.ts"],
+  "references": []
+}
+EOF
+  
+  # Auto-detect dependencies and add references
+  if [ -f "$PKG/package.json" ]; then
+    DEPS=$(jq -r '(.dependencies // {}) | keys[]' "$PKG/package.json" | grep "^@myorg/")
+    
+    for DEP in $DEPS; do
+      DEP_PKG=$(echo "$DEP" | sed 's/@myorg\///')
+      if [ -d "packages/$DEP_PKG" ]; then
+        echo "  Adding reference: $DEP_PKG"
+        jq --arg ref "../$DEP_PKG" \
+          '.references += [{"path": $ref}]' \
+          "$PKG/tsconfig.json" > tmp.json
+        mv tmp.json "$PKG/tsconfig.json"
+      fi
+    done
+  fi
+  
+  # Validate config
+  npx @muin/tsconfig-helper validate --config "$PKG/tsconfig.json" || {
+    echo "⚠️  Warning: Invalid config in $PKG_NAME"
+  }
+done
+
+# 4. Create solution-level tsconfig
+cat > tsconfig.json << 'EOF'
+{
+  "files": [],
+  "references": []
+}
+EOF
+
+for PKG in packages/*; do
+  if [ -d "$PKG" ]; then
+    PKG_NAME=$(basename "$PKG")
+    jq --arg ref "./packages/$PKG_NAME" \
+      '.references += [{"path": $ref}]' \
+      tsconfig.json > tmp.json
+    mv tmp.json tsconfig.json
+  fi
+done
+
+# 5. Validate entire structure
+echo "🔍 Validating monorepo structure..."
+npx @muin/tsconfig-helper validate --check-references --recursive
+
+# 6. Generate build order
+echo "📋 Build order:"
+npx tsc --build --dry --verbose | grep "Project:" | cut -d"'" -f2
+
+# 7. Generate scripts
+cat >> package.json << 'EOF'
+{
+  "scripts": {
+    "build": "tsc --build",
+    "build:watch": "tsc --build --watch",
+    "clean": "tsc --build --clean",
+    "typecheck": "tsc --build --dry",
+    "validate-configs": "tsconfig-helper validate --check-references --recursive"
+  }
+}
+EOF
+
+echo "✅ Monorepo TypeScript configuration complete!"
+echo ""
+echo "Next steps:"
+echo "  1. Run: npm run typecheck"
+echo "  2. Run: npm run build"
+echo "  3. Commit tsconfig files"
+```
+
+---
+
+### Workflow 5: Automated Config Optimization
+
+**Scenario:** Continuously analyze and optimize TypeScript configuration for build performance.
+
+**Setup:**
+
+```bash
+#!/bin/bash
+# scripts/optimize-tsconfig.sh
+
+echo "⚡ TypeScript Configuration Optimizer"
+
+# 1. Baseline performance measurement
+echo "📊 Measuring current performance..."
+
+cat > benchmark-results.json << 'EOF'
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "before": {},
+  "after": {},
+  "improvements": []
+}
+EOF
+
+# Measure before
+START_TIME=$(date +%s)
+npx tsc --noEmit 2>&1 | tee build-before.log
+END_TIME=$(date +%s)
+BEFORE_TIME=$((END_TIME - START_TIME))
+
+FILES_CHECKED=$(grep -o "[0-9]* files" build-before.log | head -1 | awk '{print $1}')
+
+jq --arg time "$BEFORE_TIME" --arg files "$FILES_CHECKED" \
+  '.before = {time: ($time | tonumber), files: ($files | tonumber)}' \
+  benchmark-results.json > tmp.json
+mv tmp.json benchmark-results.json
+
+echo "Baseline: $BEFORE_TIME seconds for $FILES_CHECKED files"
+
+# 2. Analyze current config
+echo "🔍 Analyzing configuration..."
+
+npx @muin/tsconfig-helper analyze --performance --format json > analysis.json
+
+# 3. Apply automated optimizations
+echo "🔧 Applying optimizations..."
+
+OPTIMIZATIONS=()
+
+# Optimization 1: Enable skipLibCheck if not already
+if ! grep -q '"skipLibCheck": true' tsconfig.json; then
+  echo "  ✓ Enabling skipLibCheck"
+  jq '.compilerOptions.skipLibCheck = true' tsconfig.json > tmp.json
+  mv tmp.json tsconfig.json
+  OPTIMIZATIONS+=("skipLibCheck")
+fi
+
+# Optimization 2: Enable incremental compilation
+if ! grep -q '"incremental": true' tsconfig.json; then
+  echo "  ✓ Enabling incremental compilation"
+  jq '.compilerOptions.incremental = true' tsconfig.json > tmp.json
+  mv tmp.json tsconfig.json
+  OPTIMIZATIONS+=("incremental")
+fi
+
+# Optimization 3: Optimize includes/excludes
+TEST_FILE_COUNT=$(find src -name "*.test.ts" -o -name "*.spec.ts" | wc -l)
+if [ "$TEST_FILE_COUNT" -gt 0 ] && ! grep -q "test.ts" tsconfig.json; then
+  echo "  ✓ Excluding test files ($TEST_FILE_COUNT files)"
+  jq '.exclude += ["**/*.test.ts", "**/*.spec.ts"]' tsconfig.json > tmp.json
+  mv tmp.json tsconfig.json
+  OPTIMIZATIONS+=("exclude-tests")
+fi
+
+# Optimization 4: Set optimal target based on Node.js version
+NODE_VERSION=$(node --version | cut -d'.' -f1 | sed 's/v//')
+if [ "$NODE_VERSION" -ge 18 ]; then
+  CURRENT_TARGET=$(jq -r '.compilerOptions.target' tsconfig.json)
+  if [ "$CURRENT_TARGET" != "ES2022" ]; then
+    echo "  ✓ Updating target to ES2022 (Node.js $NODE_VERSION supports it)"
+    jq '.compilerOptions.target = "ES2022"' tsconfig.json > tmp.json
+    mv tmp.json tsconfig.json
+    OPTIMIZATIONS+=("target-es2022")
+  fi
+fi
+
+# Optimization 5: Use bundler module resolution if using Vite/Webpack
+if [ -f "vite.config.ts" ] || [ -f "webpack.config.js" ]; then
+  CURRENT_RES=$(jq -r '.compilerOptions.moduleResolution' tsconfig.json)
+  if [ "$CURRENT_RES" != "bundler" ]; then
+    echo "  ✓ Using bundler module resolution"
+    jq '.compilerOptions.moduleResolution = "bundler"' tsconfig.json > tmp.json
+    mv tmp.json tsconfig.json
+    OPTIMIZATIONS+=("moduleResolution-bundler")
+  fi
+fi
+
+# 4. Measure after optimizations
+echo "📊 Measuring optimized performance..."
+
+# Clear cache
+rm -f tsconfig.tsbuildinfo .tsbuildinfo
+
+START_TIME=$(date +%s)
+npx tsc --noEmit 2>&1 | tee build-after.log
+END_TIME=$(date +%s)
+AFTER_TIME=$((END_TIME - START_TIME))
+
+FILES_CHECKED_AFTER=$(grep -o "[0-9]* files" build-after.log | head -1 | awk '{print $1}')
+
+jq --arg time "$AFTER_TIME" --arg files "$FILES_CHECKED_AFTER" \
+  '.after = {time: ($time | tonumber), files: ($files | tonumber)}' \
+  benchmark-results.json > tmp.json
+mv tmp.json benchmark-results.json
+
+# 5. Calculate improvements
+IMPROVEMENT=$((BEFORE_TIME - AFTER_TIME))
+IMPROVEMENT_PCT=$((IMPROVEMENT * 100 / BEFORE_TIME))
+
+jq --argjson opts "$(printf '%s\n' "${OPTIMIZATIONS[@]}" | jq -R . | jq -s .)" \
+  --arg imp "$IMPROVEMENT" \
+  --arg pct "$IMPROVEMENT_PCT" \
+  '.improvements = $opts | .improvement_seconds = ($imp | tonumber) | .improvement_percent = ($pct | tonumber)' \
+  benchmark-results.json > tmp.json
+mv tmp.json benchmark-results.json
+
+# 6. Generate report
+cat > optimization-report.md << EOF
+# TypeScript Configuration Optimization Report
+
+**Date:** $(date)
+
+## Performance Results
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Build Time | ${BEFORE_TIME}s | ${AFTER_TIME}s | ${IMPROVEMENT}s (${IMPROVEMENT_PCT}%) |
+| Files Checked | $FILES_CHECKED | $FILES_CHECKED_AFTER | $((FILES_CHECKED - FILES_CHECKED_AFTER)) fewer |
+
+## Optimizations Applied
+
+EOF
+
+for OPT in "${OPTIMIZATIONS[@]}"; do
+  echo "- ✅ $OPT" >> optimization-report.md
+done
+
+cat >> optimization-report.md << 'EOF'
+
+## Recommendations
+
+### Short-term (Easy Wins)
+- ✅ skipLibCheck: Already enabled
+- ✅ incremental: Already enabled
+- ✅ Exclude test files: Already configured
+
+### Medium-term (Requires Review)
+- [ ] Consider splitting into multiple projects with project references
+- [ ] Review and remove unused compiler options
+- [ ] Update TypeScript to latest version for performance improvements
+
+### Long-term (Architecture)
+- [ ] Implement build caching in CI/CD
+- [ ] Use SWC or esbuild for transpilation (keep tsc for type-checking)
+- [ ] Migrate to monorepo with workspace optimization
+
+## Next Steps
+
+1. Review this report
+2. Test the optimized configuration thoroughly
+3. Deploy to CI/CD pipeline
+4. Monitor for regressions
+
+EOF
+
+echo ""
+echo "📊 Optimization Complete!"
+echo "  Before: ${BEFORE_TIME}s"
+echo "  After:  ${AFTER_TIME}s"
+echo "  Saved:  ${IMPROVEMENT}s (${IMPROVEMENT_PCT}% faster)"
+echo ""
+echo "Report saved to: optimization-report.md"
+echo "Benchmark data: benchmark-results.json"
+
+# 7. Auto-commit if significant improvement
+if [ "$IMPROVEMENT_PCT" -gt 10 ]; then
+  echo "🚀 Significant improvement detected (>10%)"
+  echo "Creating optimization commit..."
+  
+  git add tsconfig.json optimization-report.md benchmark-results.json
+  git commit -m "perf(ts): Optimize TypeScript configuration
+
+- Improved type-check speed by ${IMPROVEMENT_PCT}%
+- Applied ${#OPTIMIZATIONS[@]} optimizations
+- Reduced checked files from $FILES_CHECKED to $FILES_CHECKED_AFTER
+
+See optimization-report.md for details."
+  
+  echo "✅ Changes committed. Push with: git push"
+fi
+```
+
+**Cron job for continuous optimization:**
+
+```yaml
+# .github/workflows/optimize-tsconfig.yml
+name: Optimize TypeScript Config
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - run: npm ci
+      
+      - name: Run optimizer
+        run: ./scripts/optimize-tsconfig.sh
+      
+      - name: Create PR with optimizations
+        uses: peter-evans/create-pull-request@v5
+        with:
+          title: "perf(ts): Automated TypeScript configuration optimization"
+          body-path: optimization-report.md
+          branch: auto/optimize-tsconfig
+          labels: performance,automated
+```
+
+---
+
 ## Extended Troubleshooting Guide
 
 ### Issue 11: Module resolution fails after npm install
