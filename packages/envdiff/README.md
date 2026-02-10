@@ -1245,6 +1245,917 @@ A: Yes! `npx @muin/envdiff check .env --require .env.example`
 **Q: What's the difference between check and validate?**  
 A: `check` compares against a template. `validate` checks value formats (URLs, ports, etc.).
 
+## API Reference
+
+### Command Line Interface
+
+#### `envdiff <file1> <file2>`
+
+Compare two environment files.
+
+**Arguments:**
+- `<file1>` - First environment file (source)
+- `<file2>` - Second environment file (target)
+
+**Options:**
+- `-k, --keys-only` - Compare only keys (ignore values)
+- `-s, --show-values` - Show actual values (default: masked)
+- `--ignore-comments` - Skip comment-only differences
+- `--ignore-case` - Case-insensitive key comparison
+- `--ignore-whitespace` - Ignore whitespace differences
+- `-f, --format <type>` - Output format: `table`, `json`, `markdown`, `text`
+
+**Examples:**
+```bash
+# Basic comparison
+envdiff .env.local .env.production
+
+# Keys only
+envdiff .env.local .env.production --keys-only
+
+# Show full values
+envdiff .env.local .env.production --show-values
+
+# JSON output for scripting
+envdiff .env.local .env.production --format json | jq '.missing'
+```
+
+**Exit Codes:**
+- `0` - Files are identical or comparison successful
+- `1` - Files differ
+- `2` - Error (file not found, parse error)
+
+---
+
+#### `envdiff check <file>`
+
+Check if file has all required variables.
+
+**Arguments:**
+- `<file>` - Environment file to check
+
+**Options:**
+- `-r, --require <template>` - Required variables template file
+- `--strict` - Fail on any difference (including extra variables)
+- `--allow-extra` - Allow extra variables not in template
+
+**Examples:**
+```bash
+# Check against template
+envdiff check .env --require .env.example
+
+# Strict mode (no extra vars allowed)
+envdiff check .env --require .env.example --strict
+
+# Allow extra vars
+envdiff check .env --require .env.example --allow-extra
+```
+
+**Exit Codes:**
+- `0` - All required variables present
+- `1` - Missing required variables
+- `2` - Error (file not found)
+
+---
+
+#### `envdiff validate <file>`
+
+Validate variable formats.
+
+**Arguments:**
+- `<file>` - Environment file to validate
+
+**Options:**
+- `--validate-urls` - Check if URL variables are valid
+- `--validate-emails` - Check email format
+- `--validate-ports` - Check port numbers (1-65535)
+- `--validate-booleans` - Check boolean values (true/false/1/0)
+- `--validate-all` - Enable all validations
+
+**Examples:**
+```bash
+# Validate all
+envdiff validate .env --validate-all
+
+# Specific validations
+envdiff validate .env --validate-urls --validate-ports
+
+# JSON output
+envdiff validate .env --format json
+```
+
+**Exit Codes:**
+- `0` - All validations passed
+- `1` - Validation errors found
+- `2` - Parse error
+
+---
+
+#### `envdiff secrets <file>`
+
+Detect exposed secrets and sensitive data.
+
+**Arguments:**
+- `<file>` - Environment file to scan
+
+**Options:**
+- `--detect-secrets` - Scan for exposed secrets (default: true)
+- `--secret-patterns <file>` - Custom regex patterns for secrets
+- `--entropy-threshold <num>` - High-entropy string threshold (default: 4.5)
+- `--fail-on-secrets` - Exit with code 1 if secrets found
+
+**Examples:**
+```bash
+# Detect secrets
+envdiff secrets .env
+
+# Custom patterns
+envdiff secrets .env --secret-patterns patterns.json
+
+# CI mode (fail build)
+envdiff secrets .env --fail-on-secrets
+```
+
+**Exit Codes:**
+- `0` - No secrets found
+- `1` - Secrets detected (with --fail-on-secrets)
+- `2` - Error
+
+---
+
+#### `envdiff sync <source> <target>`
+
+Sync variables from source to target.
+
+**Arguments:**
+- `<source>` - Source environment file
+- `<target>` - Target environment file to update
+
+**Options:**
+- `--dry-run` - Preview changes without applying
+- `--merge` - Merge instead of replace (keeps target-only vars)
+- `--backup` - Create backup before syncing
+- `--preserve-comments` - Keep comments from target
+
+**Examples:**
+```bash
+# Dry run first
+envdiff sync .env.production .env.staging --dry-run
+
+# Apply with backup
+envdiff sync .env.production .env.staging --backup
+
+# Merge mode
+envdiff sync .env.production .env.staging --merge --preserve-comments
+```
+
+**Exit Codes:**
+- `0` - Sync successful
+- `1` - Sync failed
+- `2` - Error (file not found, permission denied)
+
+---
+
+#### `envdiff generate <file>`
+
+Generate .env.example template.
+
+**Arguments:**
+- `<file>` - Source environment file
+
+**Options:**
+- `-o, --output <file>` - Output file (default: .env.example)
+- `--mask-values` - Mask all values (empty strings)
+- `--mask-secrets` - Mask only secret values
+- `--keep-structure` - Keep example values (mask secrets only)
+- `--add-comments` - Add descriptive comments
+
+**Examples:**
+```bash
+# Generate with masked values
+envdiff generate .env --output .env.example --mask-values
+
+# Keep structure, mask secrets
+envdiff generate .env --keep-structure --mask-secrets
+
+# With comments
+envdiff generate .env --add-comments
+```
+
+**Exit Codes:**
+- `0` - Generated successfully
+- `1` - Generation failed
+- `2` - Source file error
+
+---
+
+#### `envdiff compare <files...>`
+
+Compare multiple environments at once.
+
+**Arguments:**
+- `<files...>` - Three or more environment files
+
+**Options:**
+- `--show-matrix` - Show variable matrix (default)
+- `--keys-only` - Compare only keys
+- `-f, --format <type>` - Output format
+
+**Examples:**
+```bash
+# Compare all environments
+envdiff compare .env.dev .env.staging .env.production
+
+# Keys only
+envdiff compare .env.* --keys-only
+
+# JSON output
+envdiff compare .env.dev .env.staging .env.prod --format json
+```
+
+**Exit Codes:**
+- `0` - Comparison complete
+- `1` - Differences found
+- `2` - Error
+
+---
+
+### Configuration File (`.envdiffrc.json`)
+
+```json
+{
+  "validation": {
+    "urls": true,
+    "emails": true,
+    "ports": true,
+    "booleans": true
+  },
+  "secretDetection": {
+    "enabled": true,
+    "entropyThreshold": 4.5,
+    "patterns": [
+      "API_KEY",
+      "SECRET",
+      "PASSWORD",
+      "TOKEN"
+    ],
+    "customPatterns": "./secret-patterns.json"
+  },
+  "comparison": {
+    "ignoreCase": false,
+    "ignoreWhitespace": true,
+    "ignoreComments": true,
+    "showValues": false
+  },
+  "sync": {
+    "backupBefore": true,
+    "preserveComments": true,
+    "mergeStrategy": "union"
+  },
+  "output": {
+    "format": "table",
+    "colors": true
+  },
+  "ignore": [
+    "TEMP_*",
+    "DEBUG_*"
+  ]
+}
+```
+
+**Options:**
+
+- **validation** (object): Validation rules
+  - **urls** (boolean): Validate URL format
+  - **emails** (boolean): Validate email format
+  - **ports** (boolean): Validate port numbers
+  - **booleans** (boolean): Validate boolean values
+
+- **secretDetection** (object): Secret detection settings
+  - **enabled** (boolean): Enable secret detection
+  - **entropyThreshold** (number): Shannon entropy threshold
+  - **patterns** (array): Variable name patterns to flag
+  - **customPatterns** (string): Path to custom patterns file
+
+- **comparison** (object): Comparison settings
+  - **ignoreCase** (boolean): Case-insensitive comparison
+  - **ignoreWhitespace** (boolean): Ignore whitespace
+  - **ignoreComments** (boolean): Skip comments
+  - **showValues** (boolean): Show actual values
+
+- **sync** (object): Sync settings
+  - **backupBefore** (boolean): Create backup
+  - **preserveComments** (boolean): Keep comments
+  - **mergeStrategy** (string): `union`, `source`, `target`
+
+- **output** (object): Output settings
+  - **format** (string): Default output format
+  - **colors** (boolean): Enable colors
+
+- **ignore** (array): Variable patterns to ignore
+
+---
+
+### JavaScript API
+
+#### Installation
+
+```bash
+npm install @muin/envdiff
+```
+
+#### Usage
+
+```javascript
+const { compareEnv, checkEnv, validateEnv, detectSecrets } = require('@muin/envdiff');
+
+// Compare two env files
+const comparison = await compareEnv('.env.local', '.env.production', {
+  keysOnly: false,
+  showValues: false
+});
+
+console.log(comparison.differences); // Array of differences
+console.log(comparison.missing); // Missing variables
+console.log(comparison.extra); // Extra variables
+
+// Check required variables
+const checkResult = await checkEnv('.env', {
+  require: '.env.example',
+  strict: true
+});
+
+if (!checkResult.passed) {
+  console.error('Missing variables:', checkResult.missing);
+  process.exit(1);
+}
+
+// Validate formats
+const validation = await validateEnv('.env', {
+  validateUrls: true,
+  validatePorts: true
+});
+
+console.log(`${validation.errors.length} errors found`);
+
+// Detect secrets
+const secrets = await detectSecrets('.env', {
+  entropyThreshold: 4.5
+});
+
+if (secrets.length > 0) {
+  console.warn('⚠️  Secrets detected:', secrets);
+}
+```
+
+#### API Methods
+
+##### `compareEnv(file1, file2, options)`
+
+Compare two environment files.
+
+**Parameters:**
+- `file1` (string): First file path
+- `file2` (string): Second file path
+- `options` (object):
+  - `keysOnly` (boolean): Compare only keys
+  - `showValues` (boolean): Include values in output
+  - `ignoreCase` (boolean): Case-insensitive
+  - `ignoreWhitespace` (boolean): Ignore whitespace
+
+**Returns:** Promise<Comparison>
+
+```typescript
+interface Comparison {
+  differences: Difference[];
+  missing: string[]; // Variables in file1 but not file2
+  extra: string[]; // Variables in file2 but not file1
+  modified: string[]; // Variables with different values
+  unchanged: string[];
+}
+
+interface Difference {
+  key: string;
+  value1: string;
+  value2: string;
+  type: 'missing' | 'extra' | 'modified';
+}
+```
+
+##### `checkEnv(file, options)`
+
+Check if file has required variables.
+
+**Parameters:**
+- `file` (string): File to check
+- `options` (object):
+  - `require` (string): Template file path
+  - `strict` (boolean): Fail on extra vars
+  - `allowExtra` (boolean): Allow extra vars
+
+**Returns:** Promise<CheckResult>
+
+```typescript
+interface CheckResult {
+  passed: boolean;
+  missing: string[];
+  extra: string[];
+  present: string[];
+  message: string;
+}
+```
+
+##### `validateEnv(file, options)`
+
+Validate variable formats.
+
+**Parameters:**
+- `file` (string): File to validate
+- `options` (object):
+  - `validateUrls` (boolean): Check URLs
+  - `validateEmails` (boolean): Check emails
+  - `validatePorts` (boolean): Check ports
+  - `validateBooleans` (boolean): Check booleans
+
+**Returns:** Promise<ValidationResult>
+
+```typescript
+interface ValidationResult {
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+  passed: boolean;
+}
+
+interface ValidationError {
+  variable: string;
+  value: string;
+  issue: string;
+  suggestion?: string;
+}
+```
+
+##### `detectSecrets(file, options)`
+
+Detect secrets and sensitive data.
+
+**Parameters:**
+- `file` (string): File to scan
+- `options` (object):
+  - `entropyThreshold` (number): Shannon entropy threshold
+  - `patterns` (string[]): Custom patterns
+  - `customPatterns` (string): Path to patterns file
+
+**Returns:** Promise<Secret[]>
+
+```typescript
+interface Secret {
+  variable: string;
+  value: string; // masked
+  type: string; // e.g., 'API_KEY', 'AWS_KEY'
+  risk: 'high' | 'medium' | 'low';
+  recommendation: string;
+}
+```
+
+##### `syncEnv(source, target, options)`
+
+Sync variables from source to target.
+
+**Parameters:**
+- `source` (string): Source file
+- `target` (string): Target file
+- `options` (object):
+  - `dryRun` (boolean): Preview only
+  - `merge` (boolean): Merge mode
+  - `backup` (boolean): Create backup
+  - `preserveComments` (boolean): Keep comments
+
+**Returns:** Promise<SyncResult>
+
+```typescript
+interface SyncResult {
+  changes: Change[];
+  backup?: string; // backup file path
+  success: boolean;
+}
+
+interface Change {
+  action: 'add' | 'update' | 'remove';
+  variable: string;
+  oldValue?: string;
+  newValue?: string;
+}
+```
+
+##### `generateTemplate(file, options)`
+
+Generate .env.example template.
+
+**Parameters:**
+- `file` (string): Source file
+- `options` (object):
+  - `output` (string): Output file path
+  - `maskValues` (boolean): Mask all values
+  - `maskSecrets` (boolean): Mask only secrets
+  - `keepStructure` (boolean): Keep example values
+  - `addComments` (boolean): Add comments
+
+**Returns:** Promise<string>
+
+---
+
+## More Examples
+
+### Example 10: Docker Environment Management
+
+**Scenario:** Managing env vars across Docker, docker-compose, and .env files.
+
+**Files:**
+- `.env` (local development)
+- `docker-compose.yml` (environment section)
+- `.env.docker` (for container)
+
+**Command:**
+```bash
+envdiff convert docker-compose.yml --extract-env > .env.docker
+envdiff compare .env .env.docker --show-diff
+```
+
+**Output:**
+```
+📊 Docker Environment Comparison
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Environment Differences                                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Variable          │ .env (host)      │ .env.docker (container)│
+│  ──────────────────┼──────────────────┼────────────────────────│
+│  DATABASE_HOST     │ localhost        │ postgres               │
+│  DATABASE_PORT     │ 5432             │ 5432                   │
+│  REDIS_HOST        │ localhost        │ redis                  │
+│  API_URL           │ localhost:3000   │ api:3000               │
+│  NODE_ENV          │ development      │ development            │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Docker-Specific Notes                                          │
+├─────────────────────────────────────────────────────────────────┤
+│  ⚠️  localhost won't work inside containers!                   │
+│                                                                 │
+│  Required changes:                                              │
+│  • DATABASE_HOST: localhost → postgres (service name)          │
+│  • REDIS_HOST: localhost → redis                               │
+│  • API_URL: Use container network names                        │
+│                                                                 │
+│  Recommendation:                                                │
+│  Use conditional logic or separate .env files:                 │
+│  - .env.local (development on host)                            │
+│  - .env.docker (inside containers)                             │
+╰─────────────────────────────────────────────────────────────────╯
+```
+
+### Example 11: Secret Rotation Audit
+
+**Command:**
+```bash
+envdiff secrets .env --audit --show-age
+```
+
+**Output:**
+```
+🔐 Secret Audit Report
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Secret Age Analysis                                            │
+├─────────────────────────────────────────────────────────────────┤
+│  Variable               │ Type        │ Age      │ Action       │
+│  ───────────────────────┼─────────────┼──────────┼──────────────│
+│  DATABASE_PASSWORD      │ Password    │ 287 days │ 🔴 ROTATE   │
+│  JWT_SECRET             │ Token       │ 145 days │ 🟡 Review   │
+│  API_KEY                │ API Key     │  12 days │ ✅ OK       │
+│  STRIPE_SECRET_KEY      │ Stripe Key  │   5 days │ ✅ OK       │
+│  AWS_SECRET_ACCESS_KEY  │ AWS Key     │ 367 days │ 🔴 ROTATE   │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Rotation Recommendations                                       │
+├─────────────────────────────────────────────────────────────────┤
+│  🔴 Urgent (>180 days):                                         │
+│  • DATABASE_PASSWORD (287 days old)                             │
+│    Action: Rotate immediately                                   │
+│    Risk: High - database access credentials                     │
+│                                                                 │
+│  • AWS_SECRET_ACCESS_KEY (367 days old)                         │
+│    Action: Rotate via AWS IAM console                           │
+│    Risk: Critical - full AWS account access                     │
+│                                                                 │
+│  🟡 Soon (90-180 days):                                         │
+│  • JWT_SECRET (145 days old)                                    │
+│    Action: Schedule rotation next maintenance window            │
+│    Risk: Medium - will invalidate user sessions                 │
+│                                                                 │
+│  Best Practices:                                                │
+│  • Rotate secrets every 90 days                                 │
+│  • Use secret managers (AWS Secrets Manager, HashiCorp Vault)   │
+│  • Enable automatic rotation where possible                     │
+│  • Track rotation dates in password manager                     │
+╰─────────────────────────────────────────────────────────────────╯
+
+📅 Next audit: 2026-03-10 (30 days from now)
+```
+
+### Example 12: Environment Inheritance Chain
+
+**Project Structure:**
+```
+.env.base              # Shared defaults
+.env.development       # Dev overrides
+.env.staging           # Staging overrides
+.env.production        # Prod overrides
+```
+
+**Command:**
+```bash
+envdiff chain .env.base .env.development .env.staging .env.production
+```
+
+**Output:**
+```
+🔗 Environment Inheritance Chain
+
+.env.base (10 variables)
+    ↓
+.env.development (12 variables: +3 new, +1 override)
+    ↓
+.env.staging (14 variables: +2 new, +2 overrides)
+    ↓
+.env.production (15 variables: +1 new, +4 overrides)
+
+╭─────────────────────────────────────────────────────────────────────────────╮
+│  Variable Flow                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Variable          │ base    │ development │ staging    │ production      │
+│  ──────────────────┼─────────┼─────────────┼────────────┼─────────────────│
+│  NODE_ENV          │ -       │ development │ staging    │ production      │
+│  LOG_LEVEL         │ info    │ debug       │ info       │ warn            │
+│  DATABASE_URL      │ local   │ local       │ stage-db   │ prod-db         │
+│  CACHE_ENABLED     │ false   │ false       │ true       │ true            │
+│  DEBUG             │ false   │ true        │ false      │ false           │
+│  SENTRY_DSN        │ -       │ -           │ [SET]      │ [SET]           │
+│  RATE_LIMIT        │ 100     │ 1000        │ 100        │ 50              │
+╰─────────────────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Chain Validation                                               │
+├─────────────────────────────────────────────────────────────────┤
+│  ✅ All environments inherit from .env.base                     │
+│  ✅ No variables lost in chain                                  │
+│  ⚠️  DATABASE_URL not set in .env.base (set per environment)   │
+│  ⚠️  SENTRY_DSN missing in dev (expected for error tracking)   │
+╰─────────────────────────────────────────────────────────────────╯
+```
+
+### Example 13: Git Pre-commit Hook
+
+**.husky/pre-commit:**
+```bash
+#!/bin/sh
+
+# Check if .env files are being committed
+if git diff --cached --name-only | grep -E "^\.env$"; then
+  echo "🚫 Error: Attempting to commit .env file!"
+  echo ""
+  echo "This file contains secrets and should not be committed."
+  echo ""
+  echo "To fix:"
+  echo "  1. git reset HEAD .env"
+  echo "  2. Add .env to .gitignore"
+  echo "  3. Commit .env.example instead"
+  exit 1
+fi
+
+# Check .env.example is up to date
+if [ -f .env ]; then
+  npx envdiff check .env.example --require .env --keys-only --quiet
+  
+  if [ $? -ne 0 ]; then
+    echo "⚠️  Warning: .env.example may be outdated"
+    echo ""
+    echo "New variables in .env not documented in .env.example"
+    echo ""
+    echo "Run: envdiff generate .env --output .env.example"
+    echo ""
+    read -p "Continue anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      exit 1
+    fi
+  fi
+fi
+
+# Scan for accidentally committed secrets
+npx envdiff secrets .env.example --fail-on-secrets --quiet
+
+if [ $? -ne 0 ]; then
+  echo "🚨 Error: Secrets detected in .env.example!"
+  echo ""
+  echo "Never commit actual secrets, even in example files."
+  echo ""
+  exit 1
+fi
+
+exit 0
+```
+
+### Example 14: Environment Variable Documentation Generator
+
+**Command:**
+```bash
+envdiff document .env --output ENV_VARS.md --format markdown
+```
+
+**Generated ENV_VARS.md:**
+```markdown
+# Environment Variables
+
+Auto-generated documentation for environment configuration.
+
+## Required Variables
+
+### `DATABASE_URL`
+- **Type:** URL
+- **Example:** `postgres://user:password@localhost:5432/mydb`
+- **Description:** PostgreSQL database connection string
+- **Required in:** development, staging, production
+- **Default:** None (must be set)
+
+### `API_KEY`
+- **Type:** API Key
+- **Example:** `sk_test_****` (test mode) or `sk_live_****` (production)
+- **Description:** Third-party API authentication key
+- **Required in:** production
+- **Security:** 🔒 Secret - never commit actual value
+
+### `REDIS_URL`
+- **Type:** URL
+- **Example:** `redis://localhost:6379`
+- **Description:** Redis cache connection string
+- **Required in:** staging, production
+- **Default:** `redis://localhost:6379` (development only)
+
+## Optional Variables
+
+### `DEBUG`
+- **Type:** Boolean
+- **Default:** `false`
+- **Description:** Enable debug logging
+- **Values:** `true`, `false`, `1`, `0`
+- **Example:** `DEBUG=true npm start`
+
+### `PORT`
+- **Type:** Port Number
+- **Default:** `3000`
+- **Description:** Server port
+- **Valid Range:** 1-65535
+
+### `LOG_LEVEL`
+- **Type:** String
+- **Default:** `info`
+- **Description:** Logging level
+- **Valid Values:** `error`, `warn`, `info`, `debug`, `trace`
+
+## Environment-Specific
+
+### Development Only
+- `DEBUG_SQL` - Log all SQL queries
+- `MOCK_API` - Use mock API responses
+- `HOT_RELOAD` - Enable hot module reloading
+
+### Production Only
+- `SENTRY_DSN` - Error tracking (Sentry)
+- `CDN_URL` - CDN for static assets
+- `CACHE_TTL` - Cache time-to-live (seconds)
+
+## Security Notes
+
+🔒 **Never commit these files:**
+- `.env`
+- `.env.local`
+- `.env.*.local`
+
+✅ **Safe to commit:**
+- `.env.example`
+- `.env.template`
+
+🔐 **Secret Rotation Schedule:**
+- `API_KEY` - Every 90 days
+- `DATABASE_PASSWORD` - Every 90 days
+- `JWT_SECRET` - Every 90 days
+
+## Setup Instructions
+
+1. Copy the example file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Fill in your values:
+   ```bash
+   # Edit .env with your actual secrets
+   nano .env
+   ```
+
+3. Verify configuration:
+   ```bash
+   envdiff check .env --require .env.example
+   ```
+
+4. Never commit .env:
+   ```bash
+   # Should already be in .gitignore
+   echo ".env" >> .gitignore
+   ```
+
+---
+Last updated: 2026-02-10 | Generated by @muin/envdiff
+```
+
+### Example 15: Kubernetes ConfigMap/Secret Integration
+
+**Command:**
+```bash
+# Convert .env to Kubernetes ConfigMap
+envdiff export .env --format k8s-configmap > configmap.yaml
+
+# Convert secrets to Kubernetes Secret
+envdiff export .env --format k8s-secret --secrets-only > secret.yaml
+```
+
+**Generated configmap.yaml:**
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: default
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  PORT: "3000"
+  CACHE_ENABLED: "true"
+  API_URL: "https://api.example.com"
+```
+
+**Generated secret.yaml:**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: default
+type: Opaque
+data:
+  DATABASE_URL: cG9zdGdyZXM6Ly91c2VyOnBhc3N3b3JkQGRiOjU0MzIvbXlkYg==
+  API_KEY: c2tfbGl2ZV8xMjM0NTY3ODkwYWJjZGVm
+  JWT_SECRET: c3VwZXJfc2VjcmV0X2tleV8xMjM0NTY3ODkw
+```
+
+**Apply to cluster:**
+```bash
+kubectl apply -f configmap.yaml
+kubectl apply -f secret.yaml
+```
+
+**Verify in pod:**
+```bash
+# Check if env vars are loaded
+kubectl exec -it my-pod -- env | grep DATABASE_URL
+```
+
+### Example 16: Terraform Variable File Generation
+
+**Command:**
+```bash
+envdiff export .env.production --format terraform > terraform.tfvars
+```
+
+**Generated terraform.tfvars:**
+```hcl
+# Generated from .env.production on 2026-02-10
+
+database_url = "postgres://prod-db.example.com:5432/prod"
+api_key = "sk_live_****"  # Secret - set via TF_VAR_api_key
+node_env = "production"
+log_level = "warn"
+cache_enabled = true
+port = 8080
+
+# Secrets not included in tfvars (use environment variables instead):
+# - API_KEY: set via TF_VAR_API_KEY
+# - DATABASE_PASSWORD: set via TF_VAR_DATABASE_PASSWORD
+# - JWT_SECRET: set via TF_VAR_JWT_SECRET
+```
+
 ## License
 
 MIT © [MUIN](https://muin.company)

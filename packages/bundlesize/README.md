@@ -1051,6 +1051,903 @@ A: Use `.bundlesizeignore` (same format as .gitignore) or `--exclude` pattern.
 **Q: What happens if my bundle has no source map?**  
 A: Basic analysis still works (size, compression). Dependency breakdown requires source maps.
 
+## API Reference
+
+### Command Line Interface
+
+#### `bundlesize analyze <file>`
+
+Analyze bundle size and composition.
+
+**Arguments:**
+- `<file>` - Path to bundle file(s). Supports glob patterns.
+
+**Options:**
+- `--show-duplicates` - Highlight duplicate dependencies
+- `--include-sourcemap` - Include source map analysis (requires .map file)
+- `--json` - Output as JSON
+- `--cache` - Cache source map parsing for faster subsequent runs
+- `--no-compress` - Skip compression calculations (faster)
+- `--verbose` - Show detailed output including all files
+
+**Examples:**
+```bash
+# Basic analysis
+bundlesize analyze dist/main.js
+
+# Multiple files with glob
+bundlesize analyze "dist/**/*.js"
+
+# JSON output for scripting
+bundlesize analyze dist/main.js --json | jq '.size'
+
+# With duplicates and source map
+bundlesize analyze dist/main.js --show-duplicates --include-sourcemap
+```
+
+**Exit Codes:**
+- `0` - Success
+- `1` - Analysis error (file not found, parse error)
+
+---
+
+#### `bundlesize check <file>`
+
+Check bundle size against limits.
+
+**Arguments:**
+- `<file>` - Path to bundle file(s)
+
+**Options:**
+- `--max-size <size>` - Maximum allowed size (e.g., `200kb`, `1.5mb`, `500000`)
+- `--max-gzip <size>` - Maximum gzipped size
+- `--max-brotli <size>` - Maximum brotli compressed size
+- `--fail-on-increase` - Fail if size increased from baseline (requires tracking)
+- `--threshold <percent>` - Fail if size increase exceeds percentage (default: 5)
+- `--gzip-level <1-9>` - Compression level for gzip (default: 6)
+
+**Examples:**
+```bash
+# Check against absolute limit
+bundlesize check dist/main.js --max-size 300kb
+
+# Check gzipped size
+bundlesize check dist/main.js --max-gzip 100kb
+
+# Fail on any increase
+bundlesize check dist/main.js --fail-on-increase
+
+# Allow 10% growth
+bundlesize check dist/main.js --threshold 10
+```
+
+**Exit Codes:**
+- `0` - All checks passed
+- `1` - Size limit exceeded or threshold exceeded
+
+---
+
+#### `bundlesize compare <file>`
+
+Compare bundle with baseline.
+
+**Arguments:**
+- `<file>` - Path to bundle file
+
+**Options:**
+- `--base <branch|tag|commit>` - Baseline reference (default: `main`)
+- `--show-diff` - Show file-by-file differences
+- `--json` - Output as JSON
+- `--format <type>` - Output format: `text`, `json`, `markdown`, `html`
+
+**Examples:**
+```bash
+# Compare with main branch
+bundlesize compare dist/main.js --base main
+
+# Compare with specific tag
+bundlesize compare dist/main.js --base v1.0.0
+
+# Detailed diff
+bundlesize compare dist/main.js --base main --show-diff
+
+# Markdown output for PR comments
+bundlesize compare dist/main.js --base main --format markdown
+```
+
+**Exit Codes:**
+- `0` - Comparison successful
+- `1` - Comparison failed (baseline not found)
+
+---
+
+#### `bundlesize report <file>`
+
+Generate detailed report.
+
+**Arguments:**
+- `<file>` - Path to bundle file
+
+**Options:**
+- `-f, --format <type>` - Report format: `text`, `json`, `html`, `markdown`
+- `-o, --output <file>` - Write report to file
+- `--include-sourcemap` - Include source map analysis
+- `--show-duplicates` - Highlight duplicate dependencies
+
+**Examples:**
+```bash
+# HTML report
+bundlesize report dist/main.js --format html --output report.html
+
+# JSON for processing
+bundlesize report dist/main.js --format json > report.json
+
+# Markdown for docs
+bundlesize report dist/main.js --format markdown --output BUNDLE_SIZE.md
+```
+
+**Exit Codes:**
+- `0` - Report generated successfully
+- `1` - Report generation failed
+
+---
+
+#### `bundlesize track <file>`
+
+Track size over time.
+
+**Arguments:**
+- `<file>` - Path to bundle file(s)
+
+**Options:**
+- `--save` - Save to tracking database
+- `--commit-baseline` - Update baseline (usually on main branch)
+- `--branch <name>` - Track for specific branch
+
+**Examples:**
+```bash
+# Track current build
+bundlesize track dist/main.js --save
+
+# Update baseline after merge
+bundlesize track dist/main.js --save --commit-baseline
+
+# Track feature branch separately
+bundlesize track dist/main.js --save --branch feature-x
+```
+
+**Exit Codes:**
+- `0` - Tracking successful
+- `1` - Tracking failed (disk write error)
+
+---
+
+#### `bundlesize history <file>`
+
+Show size history.
+
+**Arguments:**
+- `<file>` - Path to bundle file
+
+**Options:**
+- `--period <days>` - Show history for last N days (default: 30)
+- `--format <type>` - Output format: `text`, `json`, `html`
+- `--chart` - Show ASCII chart
+
+**Examples:**
+```bash
+# Last 30 days
+bundlesize history dist/main.js
+
+# Last 7 days with chart
+bundlesize history dist/main.js --period 7 --chart
+
+# JSON output
+bundlesize history dist/main.js --format json
+```
+
+**Exit Codes:**
+- `0` - History retrieved
+- `1` - No tracking data found
+
+---
+
+#### `bundlesize treemap <file>`
+
+Generate treemap visualization.
+
+**Arguments:**
+- `<file>` - Path to bundle file
+
+**Options:**
+- `--source-map` - Use source map for accurate attribution
+- `--interactive` - Launch interactive treemap (terminal UI)
+- `--output <file>` - Save as HTML (interactive web version)
+
+**Examples:**
+```bash
+# ASCII treemap in terminal
+bundlesize treemap dist/main.js
+
+# Interactive terminal UI
+bundlesize treemap dist/main.js --interactive
+
+# HTML treemap
+bundlesize treemap dist/main.js --output treemap.html
+```
+
+**Exit Codes:**
+- `0` - Treemap generated
+- `1` - Source map required but not found
+
+---
+
+### Configuration File (`.bundlesizerc.json`)
+
+```json
+{
+  "files": [
+    {
+      "path": "dist/main.js",
+      "maxSize": "300kb",
+      "maxGzip": "100kb",
+      "maxBrotli": "90kb"
+    }
+  ],
+  "threshold": 5,
+  "failOnIncrease": false,
+  "compression": "both",
+  "gzipLevel": 6,
+  "ci": {
+    "trackHistory": true,
+    "commentOnPR": true,
+    "failOnExceed": true,
+    "githubToken": "${GITHUB_TOKEN}"
+  },
+  "ignore": [
+    "*.map",
+    "*.LICENSE.txt"
+  ],
+  "baseBranch": "main"
+}
+```
+
+**Options:**
+
+- **files** (array): List of bundles to check
+  - **path** (string): Glob pattern for bundle files
+  - **maxSize** (string): Maximum size (e.g., `300kb`, `1.5mb`)
+  - **maxGzip** (string): Maximum gzipped size
+  - **maxBrotli** (string): Maximum brotli size
+
+- **threshold** (number): Percentage increase allowed (default: `5`)
+
+- **failOnIncrease** (boolean): Fail if any size increase detected
+
+- **compression** (string): Compression to check: `gzip`, `brotli`, `both`
+
+- **gzipLevel** (number): Gzip compression level 1-9 (default: `6`)
+
+- **ci** (object): CI/CD integration settings
+  - **trackHistory** (boolean): Save size history
+  - **commentOnPR** (boolean): Post results as PR comment
+  - **failOnExceed** (boolean): Fail CI on size exceed
+  - **githubToken** (string): GitHub token for PR comments
+
+- **ignore** (array): Patterns to ignore
+
+- **baseBranch** (string): Default branch for comparison (default: `main`)
+
+---
+
+### JavaScript API
+
+#### Installation
+
+```bash
+npm install @muin/bundlesize
+```
+
+#### Usage
+
+```javascript
+const { analyzeBundleSize, checkSize, compareBundles } = require('@muin/bundlesize');
+
+// Analyze
+const analysis = await analyzeBundleSize('dist/main.js', {
+  includeDuplicates: true,
+  includeSourceMap: true
+});
+
+console.log(analysis.size); // Original size in bytes
+console.log(analysis.gzipSize); // Gzipped size
+console.log(analysis.brotliSize); // Brotli size
+console.log(analysis.dependencies); // Dependency breakdown
+
+// Check against limits
+const checkResult = await checkSize('dist/main.js', {
+  maxSize: 300 * 1024, // 300 KB in bytes
+  maxGzip: 100 * 1024
+});
+
+if (!checkResult.passed) {
+  console.error('Size limit exceeded!');
+  process.exit(1);
+}
+
+// Compare with baseline
+const comparison = await compareBundles({
+  current: 'dist/main.js',
+  base: 'main' // git branch/tag/commit
+});
+
+console.log(`Size changed by ${comparison.percentChange}%`);
+```
+
+#### API Methods
+
+##### `analyzeBundleSize(filePath, options)`
+
+Analyze a bundle file.
+
+**Parameters:**
+- `filePath` (string): Path to bundle file
+- `options` (object):
+  - `includeDuplicates` (boolean): Detect duplicate dependencies
+  - `includeSourceMap` (boolean): Parse source map for accurate breakdown
+  - `cache` (boolean): Cache parsed source maps
+  - `compress` (boolean): Calculate compressed sizes (default: true)
+
+**Returns:** Promise<Analysis>
+
+```typescript
+interface Analysis {
+  size: number; // bytes
+  gzipSize: number;
+  brotliSize: number;
+  dependencies: Dependency[];
+  duplicates: Duplicate[];
+  recommendations: Recommendation[];
+}
+```
+
+##### `checkSize(filePath, limits)`
+
+Check if bundle meets size limits.
+
+**Parameters:**
+- `filePath` (string): Path to bundle file
+- `limits` (object):
+  - `maxSize` (number): Max size in bytes
+  - `maxGzip` (number): Max gzipped size in bytes
+  - `maxBrotli` (number): Max brotli size in bytes
+  - `threshold` (number): Allowed increase percentage
+
+**Returns:** Promise<CheckResult>
+
+```typescript
+interface CheckResult {
+  passed: boolean;
+  exceeded: {
+    size?: number;
+    gzip?: number;
+    brotli?: number;
+  };
+  message: string;
+}
+```
+
+##### `compareBundles(options)`
+
+Compare current bundle with baseline.
+
+**Parameters:**
+- `options` (object):
+  - `current` (string): Current bundle path
+  - `base` (string): Git ref (branch/tag/commit) for baseline
+  - `showDiff` (boolean): Include file-by-file diff
+
+**Returns:** Promise<Comparison>
+
+```typescript
+interface Comparison {
+  current: Analysis;
+  base: Analysis;
+  diff: number; // size difference in bytes
+  percentChange: number;
+  fileDiff?: FileDiff[];
+}
+```
+
+##### `trackSize(filePath, options)`
+
+Track bundle size over time.
+
+**Parameters:**
+- `filePath` (string): Path to bundle file
+- `options` (object):
+  - `save` (boolean): Save to database
+  - `branch` (string): Branch name
+
+**Returns:** Promise<void>
+
+##### `generateReport(filePath, options)`
+
+Generate a detailed report.
+
+**Parameters:**
+- `filePath` (string): Path to bundle file
+- `options` (object):
+  - `format` (string): `text` | `json` | `html` | `markdown`
+  - `outputPath` (string): Where to save report
+
+**Returns:** Promise<string>
+
+---
+
+## More Examples
+
+### Example 10: Monorepo with Multiple Bundles
+
+**Project Structure:**
+```
+my-monorepo/
+├── packages/
+│   ├── web-app/
+│   │   └── dist/
+│   │       ├── main.js
+│   │       └── vendors.js
+│   ├── admin-panel/
+│   │   └── dist/
+│   │       └── admin.js
+│   └── mobile-app/
+│       └── dist/
+│           └── mobile.js
+└── .bundlesizerc.json
+```
+
+**.bundlesizerc.json:**
+```json
+{
+  "files": [
+    {
+      "path": "packages/web-app/dist/main.js",
+      "maxSize": "300kb",
+      "maxGzip": "100kb",
+      "name": "Web App - Main"
+    },
+    {
+      "path": "packages/web-app/dist/vendors.js",
+      "maxSize": "500kb",
+      "maxGzip": "150kb",
+      "name": "Web App - Vendors"
+    },
+    {
+      "path": "packages/admin-panel/dist/admin.js",
+      "maxSize": "400kb",
+      "name": "Admin Panel"
+    },
+    {
+      "path": "packages/mobile-app/dist/mobile.js",
+      "maxSize": "200kb",
+      "name": "Mobile App"
+    }
+  ],
+  "threshold": 3,
+  "ci": {
+    "trackHistory": true,
+    "commentOnPR": true
+  }
+}
+```
+
+**Command:**
+```bash
+bundlesize check
+```
+
+**Output:**
+```
+📊 Bundle Size Check - Monorepo
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Package: web-app                                               │
+├─────────────────────────────────────────────────────────────────┤
+│  ✅ main.js          247 KB / 300 KB  (82%)                     │
+│  ✅ vendors.js       438 KB / 500 KB  (88%)                     │
+│  Total:             685 KB                                      │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Package: admin-panel                                           │
+├─────────────────────────────────────────────────────────────────┤
+│  ✅ admin.js         356 KB / 400 KB  (89%)                     │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Package: mobile-app                                            │
+├─────────────────────────────────────────────────────────────────┤
+│  ✅ mobile.js        167 KB / 200 KB  (84%)                     │
+╰─────────────────────────────────────────────────────────────────╯
+
+✅ All bundles within size limits!
+Total across all packages: 1,208 KB
+```
+
+### Example 11: Progressive Web App (PWA) Analysis
+
+**Command:**
+```bash
+bundlesize analyze dist/*.js --show-duplicates
+```
+
+**Output:**
+```
+📊 PWA Bundle Analysis
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Bundle Overview                                                │
+├─────────────────────────────────────────────────────────────────┤
+│  app.js           423 KB  (124 KB gzipped)                      │
+│  vendor.js        567 KB  (168 KB gzipped)                      │
+│  sw.js             12 KB  (  4 KB gzipped)                      │
+│  polyfills.js      89 KB  ( 28 KB gzipped)                      │
+│  ─────────────────────────────────────────────────────────────  │
+│  Total:         1,091 KB  (324 KB gzipped)                      │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Loading Strategy Analysis                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  Critical path (app + vendor):      990 KB  (292 KB gzipped)   │
+│  Service worker (cacheable):         12 KB  (  4 KB gzipped)   │
+│  Polyfills (conditional):            89 KB  ( 28 KB gzipped)   │
+│                                                                 │
+│  First Load Time Estimate:                                     │
+│  • Fast 3G (400 KB/s):    ~730ms                                │
+│  • Slow 3G (50 KB/s):   ~5.8 seconds                            │
+│  • 4G (2 MB/s):           ~146ms                                │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Duplicate Dependencies                                         │
+├─────────────────────────────────────────────────────────────────┤
+│  ⚠️  @babel/runtime appears in both app.js and vendor.js       │
+│     • app.js: 45 KB                                             │
+│     • vendor.js: 45 KB                                          │
+│     • Wasted: 45 KB (use shared chunk)                          │
+│                                                                 │
+│  ⚠️  regenerator-runtime duplicated                            │
+│     • Wasted: 12 KB                                             │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  PWA-Specific Recommendations                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Code Splitting                                              │
+│     Current: All code in 2 bundles                              │
+│     Recommended: Split by route                                 │
+│     Potential savings: ~200 KB on initial load                  │
+│                                                                 │
+│  2. Service Worker Optimization                                 │
+│     • sw.js is small ✅                                         │
+│     • Consider inlining into HTML (<5KB)                        │
+│                                                                 │
+│  3. Critical CSS                                                │
+│     • No CSS bundles detected                                   │
+│     • Ensure critical CSS is inlined                            │
+│                                                                 │
+│  4. Dynamic Imports                                             │
+│     • Use React.lazy() for route-based splitting                │
+│     • Target: <200 KB per route                                 │
+╰─────────────────────────────────────────────────────────────────╯
+```
+
+### Example 12: Bundle Budget Enforcement (Real CI Example)
+
+**.github/workflows/size-check.yml:**
+```yaml
+name: Bundle Size Check
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'package.json'
+
+jobs:
+  check-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Needed for comparison
+      
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Check bundle size
+        run: |
+          npx @muin/bundlesize check \
+            --fail-on-increase \
+            --threshold 5 \
+            > size-check.txt
+        continue-on-error: true
+        id: size-check
+      
+      - name: Compare with main
+        run: |
+          npx @muin/bundlesize compare dist/main.js \
+            --base origin/main \
+            --format markdown \
+            > size-comparison.md
+      
+      - name: Comment PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const comparison = fs.readFileSync('size-comparison.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comparison
+            });
+      
+      - name: Fail if exceeded
+        if: steps.size-check.outcome == 'failure'
+        run: |
+          cat size-check.txt
+          exit 1
+```
+
+**PR Comment Result:**
+```markdown
+## 📊 Bundle Size Report
+
+### Summary
+- **Current:** 847.2 KB (251.3 KB gzipped)
+- **Previous:** 823.5 KB (245.1 KB gzipped)
+- **Difference:** +23.7 KB (+2.9%)
+- **Status:** ⚠️ Increased but within threshold (5%)
+
+### Changes by File
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| main.js | 823.5 KB | 847.2 KB | +23.7 KB (+2.9%) |
+
+### What Changed
+**Added dependencies:**
+- chart.js (+38.9 KB)
+
+**Removed dependencies:**
+- moment (-98.7 KB) ✅
+
+**Net change:** +23.7 KB
+
+### Recommendations
+- Bundle size increased but old dependency (moment) was removed
+- New dependency (chart.js) is justified for charting feature
+- Consider lazy loading chart.js if not used on every page
+
+### Action Required
+✅ No action needed - change is acceptable
+```
+
+### Example 13: Serverless Function Optimization
+
+**Scenario:** AWS Lambda has 50MB deployment package limit.
+
+**Command:**
+```bash
+bundlesize analyze .serverless/my-function.zip --show-duplicates
+```
+
+**Output:**
+```
+📦 Serverless Function Analysis: my-function
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Deployment Package Size                                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Compressed (.zip):        8.4 MB  / 50 MB limit  (17%)         │
+│  Uncompressed:            34.7 MB  / 250 MB limit (14%)         │
+│                                                                 │
+│  Status: ✅ Well within Lambda limits                          │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Package Contents                                               │
+├─────────────────────────────────────────────────────────────────┤
+│  node_modules/           32.1 MB  (92.5%)                       │
+│  Your code:               2.6 MB  ( 7.5%)                       │
+│  ────────────────────────────────────────────────────────────   │
+│  Top dependencies:                                              │
+│  • aws-sdk              12.3 MB  (included in Lambda by default!)│
+│  • lodash                4.7 MB  (use lodash-es: 500 KB)        │
+│  • moment                2.1 MB  (use date-fns: 150 KB)         │
+│  • axios                 1.4 MB                                 │
+│  • uuid                  0.9 MB                                 │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  🚀 Lambda-Specific Optimizations                               │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Remove aws-sdk from bundle                                  │
+│     Impact: -12.3 MB (-36%)                                     │
+│     How: Add to externals in webpack.config.js                  │
+│                                                                 │
+│     module.exports = {                                          │
+│       externals: ['aws-sdk']                                    │
+│     }                                                           │
+│                                                                 │
+│  2. Replace lodash with lodash-es                               │
+│     Impact: -4.2 MB (-12%)                                      │
+│     How: npm install lodash-es                                  │
+│          import { map } from 'lodash-es'                        │
+│                                                                 │
+│  3. Replace moment with date-fns                                │
+│     Impact: -1.95 MB (-6%)                                      │
+│     How: npm uninstall moment && npm install date-fns           │
+│                                                                 │
+│  Total potential savings: -18.45 MB (-54% reduction!)           │
+│  New size: ~16 MB uncompressed (4 MB compressed)                │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Cold Start Impact                                              │
+├─────────────────────────────────────────────────────────────────┤
+│  Current (34.7 MB):    ~450ms cold start                        │
+│  Optimized (16 MB):    ~200ms cold start                        │
+│                                                                 │
+│  Improvement: -250ms faster cold starts                         │
+╰─────────────────────────────────────────────────────────────────╯
+```
+
+### Example 14: Tree-Shaking Analysis
+
+**Command:**
+```bash
+bundlesize analyze dist/main.js --tree-shaking-report
+```
+
+**Output:**
+```
+🌳 Tree-Shaking Analysis
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Tree-Shaking Effectiveness                                     │
+├─────────────────────────────────────────────────────────────────┤
+│  Overall Score: 67/100  (Moderate)                              │
+│                                                                 │
+│  Unused code detected: 124 KB (15% of bundle)                   │
+│  Well tree-shaken: 712 KB (85%)                                 │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Libraries Not Tree-Shakeable                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  ❌ lodash (112 KB)                                             │
+│     Issue: CommonJS format, imports entire library              │
+│     Fix: Use lodash-es instead                                  │
+│                                                                 │
+│  ❌ moment (98 KB)                                              │
+│     Issue: Includes all locales (unused)                        │
+│     Fix: Use moment-locales-webpack-plugin                      │
+│           OR replace with date-fns                              │
+│                                                                 │
+│  ❌ rxjs (67 KB imported, 23 KB unused)                         │
+│     Issue: Some operators imported but not used                 │
+│     Used:   map, filter, switchMap                              │
+│     Unused: mergeMap, concat, combineLatest                     │
+│     Fix: Remove unused imports                                  │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Well Tree-Shaken Libraries ✅                                  │
+├─────────────────────────────────────────────────────────────────┤
+│  ✅ react (only hooks used are included)                        │
+│  ✅ date-fns (only imported functions included)                 │
+│  ✅ ramda (tree-shakeable by default)                           │
+╰─────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────╮
+│  Optimization Steps                                             │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Replace lodash with lodash-es:                              │
+│     npm uninstall lodash && npm install lodash-es               │
+│     Change: import _ from 'lodash'                              │
+│     To:     import { map, filter } from 'lodash-es'             │
+│     Savings: ~70 KB                                             │
+│                                                                 │
+│  2. Remove unused rxjs imports:                                 │
+│     Remove: import { mergeMap, concat } from 'rxjs/operators'   │
+│     Savings: ~23 KB                                             │
+│                                                                 │
+│  3. Replace moment with date-fns:                               │
+│     npm uninstall moment && npm install date-fns                │
+│     Savings: ~85 KB                                             │
+│                                                                 │
+│  Total potential savings: ~178 KB (-21% bundle size)            │
+╰─────────────────────────────────────────────────────────────────╯
+```
+
+### Example 15: Webpack Plugin Integration
+
+**webpack.config.js:**
+```javascript
+const BundleSizePlugin = require('@muin/bundlesize/webpack-plugin');
+
+module.exports = {
+  // ... other config
+  plugins: [
+    new BundleSizePlugin({
+      // Maximum sizes
+      maxSize: '300kb',
+      maxGzip: '100kb',
+      
+      // Fail build if exceeded
+      failOnExceed: true,
+      
+      // Allow 5% growth
+      threshold: 5,
+      
+      // Track history
+      trackHistory: true,
+      
+      // Generate report
+      report: {
+        enabled: true,
+        format: 'html',
+        output: 'bundle-report.html'
+      },
+      
+      // Warnings
+      warnOnDuplicates: true,
+      warnOnLargeDependencies: {
+        threshold: '50kb'
+      },
+      
+      // Exclude from size calc
+      exclude: [
+        /\.map$/,
+        /LICENSE\.txt$/
+      ]
+    })
+  ]
+};
+```
+
+**Build Output:**
+```
+webpack 5.75.0 compiled with 1 warning in 8432 ms
+
+⚠️  Bundle Size Warning
+
+dist/main.js: 287 KB (97 KB gzipped)
+  Status: ✅ Within limit (300 KB)
+  
+dist/vendor.js: 445 KB (132 KB gzipped)
+  Status: ⚠️  Close to limit (500 KB)
+  
+Warnings:
+  • lodash (112 KB) - Consider using lodash-es
+  • Duplicate dependency: core-js appears in 2 bundles (34 KB wasted)
+
+📊 Report generated: bundle-report.html
+📈 Size tracked: .bundlesize-cache.json
+```
+
 ## License
 
 MIT © [MUIN](https://muin.company)
