@@ -1,0 +1,122 @@
+name: Quality Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - json-to-types
+          - curl-to-code
+          - depcheck-lite
+          - lockcheck
+          - envdiff
+          - bundlesize
+          - tsconfig-helper
+          - readme-gen
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Check if package exists
+        id: check
+        run: |
+          if [ -f "packages/${{ matrix.package }}/package.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Check package.json
+        if: steps.check.outputs.exists == 'true'
+        working-directory: packages/${{ matrix.package }}
+        run: |
+          node -e "
+            const pkg = require('./package.json');
+            const required = ['name', 'version', 'description', 'main', 'bin', 'license', 'author'];
+            const missing = required.filter(f => !pkg[f]);
+            if (missing.length) {
+              console.log('⚠️ Missing fields:', missing.join(', '));
+            } else {
+              console.log('✅ package.json valid');
+            }
+          "
+      
+      - name: Check LICENSE
+        if: steps.check.outputs.exists == 'true'
+        working-directory: packages/${{ matrix.package }}
+        run: |
+          if [ -f LICENSE ]; then
+            echo "✅ LICENSE present"
+          else
+            echo "⚠️ LICENSE file missing"
+          fi
+      
+      - name: Check README
+        if: steps.check.outputs.exists == 'true'
+        working-directory: packages/${{ matrix.package }}
+        run: |
+          if [ -f README.md ]; then
+            lines=$(wc -l < README.md)
+            if [ "$lines" -lt 100 ]; then
+              echo "⚠️ README seems short ($lines lines)"
+            else
+              echo "✅ README has $lines lines"
+            fi
+          else
+            echo "⚠️ README.md missing"
+          fi
+      
+      - name: Install dependencies
+        if: steps.check.outputs.exists == 'true'
+        working-directory: packages/${{ matrix.package }}
+        run: npm ci || npm install
+      
+      - name: Build
+        if: steps.check.outputs.exists == 'true'
+        working-directory: packages/${{ matrix.package }}
+        run: npm run build
+      
+      - name: Test CLI execution
+        if: steps.check.outputs.exists == 'true'
+        working-directory: packages/${{ matrix.package }}
+        run: |
+          if [ -f dist/cli.js ]; then
+            node dist/cli.js --help
+          else
+            echo "⚠️ dist/cli.js not found"
+          fi
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Audit packages
+        run: |
+          for pkg in packages/*/; do
+            if [ -f "$pkg/package.json" ]; then
+              echo "=== Auditing $(basename $pkg) ==="
+              (cd "$pkg" && npm install --package-lock-only 2>/dev/null && npm audit --production) || echo "⚠️ Audit issues found"
+            fi
+          done
+        continue-on-error: true
