@@ -1,0 +1,61 @@
+{
+  "name": "roast-cli",
+  "version": "0.1.0",
+  "description": "Gordon Ramsay meets your IDE — brutally honest, hilariously harsh AI code reviews from your terminal",
+  "main": "src/index.js",
+  "bin": {
+    "roast": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node test/index.test.js",
+    "demo": "node demo/run-demo.js"
+  },
+  "keywords": [
+    "code-review",
+    "ai",
+    "humor",
+    "developer-tools",
+    "cli",
+    "linter",
+    "feedback",
+    "roast",
+    "code-quality",
+    "code-analysis",
+    "openai",
+    "gpt",
+    "claude",
+    "funny",
+    "brutal-feedback",
+    "gordon-ramsay",
+    "developer-experience",
+    "dx",
+    "productivity",
+    "code-smell",
+    "refactoring"
+  ],
+  "author": "MUIN <human@muin.company>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muin-company/cli-tools",
+    "directory": "packages/roast"
+  },
+  "homepage": "https://github.com/muin-company/cli-tools/tree/main/packages/roast#readme",
+  "bugs": {
+    "url": "https://github.com/muin-company/cli-tools/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "openai": "^4.0.0",
+    "chalk": "^5.3.0",
+    "ora": "^7.0.0",
+    "meow": "^12.0.0"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ]
+}

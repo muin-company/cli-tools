@@ -4,6 +4,30 @@ Interactive CLI tools for developers.
 
 ## Packages
 
+### 🔥 [roast](./packages/roast) — **NEW**
+
+Gordon Ramsay meets your IDE. Brutally honest, hilariously harsh AI code reviews from your terminal.
+
+**Features:**
+- Three intensity levels: mild → medium → brutal (Gordon Ramsay mode)
+- Supports any programming language
+- Actionable feedback hidden in every insult
+- CI integration with JSON output
+
+**Installation:**
+```bash
+npm install -g roast-cli
+```
+
+**Usage:**
+```bash
+roast app.js                    # Brutal by default
+roast --level mild utils.py     # Be gentle
+git diff --staged | roast --diff  # Roast your changes
+```
+
+---
+
 ### [@muin/json-to-types](./packages/json-to-types)
 
 Convert JSON to TypeScript, Zod, Python types with interactive CLI.
