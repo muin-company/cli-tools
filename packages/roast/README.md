@@ -83,103 +83,23 @@ roast --model gpt-4o legacy-code.java
 
 | Level | Vibe | Best For |
 |-------|------|----------|
-| `--level mild` | Friendly mentor | New devs, PRs you want to keep diplomatic |
-| `--level medium` | Sarcastic senior dev | Team code reviews, your own code |
-| `--level brutal` | Gordon Ramsay 🔥 | Entertainment, humbling yourself, Fridays |
+| `--severity mild` | Friendly mentor | New devs, PRs you want to keep diplomatic |
+| `--severity medium` | Sarcastic senior dev | Team code reviews, your own code |
+| `--severity harsh` | Gordon Ramsay 🔥 | Entertainment, humbling yourself, Fridays |
 
 ## Examples
 
-### JavaScript — The Pyramid of Doom
+### `--severity mild` — Friendly Mentor
 
-```bash
-$ roast examples/bad.js
-```
+<img src="./assets/screenshots/roast-mild.png" alt="roast mild example" width="700"/>
 
-```
-──────────────────────────────────────────────────────────
-  🔥 ROAST REPORT
-──────────────────────────────────────────────────────────
+### `--severity medium` — Sarcastic Senior Dev
 
-Oh. Oh no. WHAT IS THIS?!
+<img src="./assets/screenshots/roast-medium.png" alt="roast medium example" width="700"/>
 
-This code is so RAW it's still mooing!
+### `--severity harsh` — Gordon Ramsay Mode 🔥
 
-🔪 The Pyramid of Doom (lines 3-15)
-Five nested if-statements?! This isn't code, it's a
-BLOODY RUSSIAN NESTING DOLL! Ever heard of early returns?
-
-🔪 `var` in 2026?!
-Using var is like cooking with a MICROWAVE in a Michelin
-kitchen! Use const and let, you donut!
-
-🔪 Single-letter variables
-d? n? a? e? This reads like you're playing bloody
-SCRABBLE, not writing code!
-
-Rating: 2/10 — I've seen better code written by a toaster. 🔥
-```
-
-### Python — The God Function
-
-```bash
-$ roast --level medium examples/bad.py
-```
-
-```
-──────────────────────────────────────────────────────────
-  🔥 ROAST REPORT
-──────────────────────────────────────────────────────────
-
-Oh, a function with 9 parameters and a bare except:pass.
-You must be fun at incident postmortems.
-
-🔍 calc(x, y, z, a, b, c, d, e, f)
-Nine. Parameters. Did you lose a bet, or do you genuinely
-hate everyone who'll maintain this? Use **kwargs or a
-dataclass. Please. I'm begging.
-
-🔍 except: pass
-Congratulations, you've invented a black hole for bugs.
-Nothing escapes. Not even your dignity.
-
-🔍 The process() method
-All three branches do the exact same thing. That's not
-a switch statement, that's a cry for help:
-  return [x for x in input if x['type'] in {'A','B','C'}]
-
-There. One line. You're welcome.
-```
-
-### Go — The `interface{}` Wasteland
-
-```bash
-$ roast examples/bad.go
-```
-
-```
-──────────────────────────────────────────────────────────
-  🔥 ROAST REPORT
-──────────────────────────────────────────────────────────
-
-What in the BLOODY HELL is "doStuff"?! That's not a
-function name, that's a SURRENDER!
-
-🔪 interface{} everywhere
-You've turned a statically typed language into JavaScript.
-That takes EFFORT! And not the good kind!
-
-🔪 Type assertions without ok checks
-data.(map[string]interface{}) with no comma-ok? That's
-a PANIC waiting to happen! This code is a ticking time
-bomb served on a silver platter!
-
-🔪 "doEverything()"
-A function called doEverything that does NOTHING useful.
-At least the name is honest about its AMBITION!
-
-Rating: 3/10 — The error handling saved you from a 1.
-Now go learn about generics, they exist for a REASON! 🔥
-```
+<img src="./assets/screenshots/roast-brutal.png" alt="roast brutal example" width="700"/>
 
 ## Before → After
 
