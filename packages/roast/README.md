@@ -42,17 +42,16 @@ Meanwhile, your actual code problems — pyramid of doom, god functions, cargo-c
 ## Quick Start
 
 ```bash
-# Install
-npm install -g roast-cli
-
-# Set your OpenAI key
-export OPENAI_API_KEY=sk-...
-
-# Roast a file
-roast app.js
+npx roast-cli app.js       # Roast any file instantly
 ```
 
-That's it. Three commands. Now go fix your code.
+> Requires `OPENAI_API_KEY` env var. Get one at [platform.openai.com](https://platform.openai.com/api-keys).
+
+Or install globally:
+
+```bash
+npm install -g roast-cli
+```
 
 ## Usage
 
@@ -161,6 +160,14 @@ Any OpenAI-compatible model works:
 - `gpt-4o` — Smarter roasts
 - `gpt-4-turbo` — Premium burns
 - Any OpenAI-compatible API (Ollama, Together, etc.)
+
+## Use Cases
+
+- **Pre-PR self-review** — Roast your own code before teammates do. Catch embarrassing patterns early.
+- **Team Friday fun** — Run `roast --level harsh` on the week's worst PR. Winner gets bragging rights.
+- **Onboarding** — New devs roast legacy code to learn what NOT to do (and laugh while doing it).
+- **CI gate** — Auto-roast PRs in GitHub Actions. Real feedback, not just lint warnings.
+- **Learning tool** — Students get memorable feedback that sticks (nobody forgets being called out by Gordon Ramsay).
 
 ## CI Integration
 
