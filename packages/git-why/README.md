@@ -1,11 +1,25 @@
-# git-why
+<div align="center">
 
-**Git blame tells you who. git-why tells you _WHY_.**
+# 🔍 git-why
 
-[![npm version](https://img.shields.io/npm/v/git-why.svg)](https://www.npmjs.com/package/git-why)
+**Git blame tells you *who*. git-why tells you *WHY*.**
+
+[![npm version](https://img.shields.io/npm/v/git-why?color=blue&label=npm)](https://www.npmjs.com/package/git-why)
 [![npm downloads](https://img.shields.io/npm/dm/git-why.svg)](https://www.npmjs.com/package/git-why)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/node/v/git-why.svg)](https://nodejs.org)
+
+<br/>
+
+```bash
+npx git-why src/auth.js:42
+```
+
+*AI-powered git history explainer. Understand the "why" behind any line of code.*
+
+</div>
+
+---
 
 ## The Problem
 
@@ -296,4 +310,6 @@ Built with [Anthropic Claude](https://anthropic.com), [Commander.js](https://git
 
 ---
 
-Made by [muin](https://github.com/muin-company) · *Good code tells you what. Great code tells you why.*
+**Built by [MUIN](https://muin.company)** — *일하는 AI, 누리는 인간*
+
+🔍 Good code tells you what. Great code tells you why.
