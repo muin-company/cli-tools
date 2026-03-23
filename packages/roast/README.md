@@ -208,6 +208,10 @@ A: ~$0.001 per roast with `gpt-4o-mini`. Mass roasting your entire codebase cost
 **Q: Can I use it with Ollama / local models?**  
 A: Set `OPENAI_BASE_URL` to your local endpoint. Works with any OpenAI-compatible API.
 
+## Featured On
+
+Read the launch article on Dev.to: **[4 CLI Tools Every Developer Needs (That You've Never Heard Of)](https://dev.to/mjmuin/4-cli-tools-every-developer-needs-that-youve-never-heard-of-318b)**
+
 ## Also From MUIN
 
 Love `roast`? Check out our other developer CLI tools:

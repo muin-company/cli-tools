@@ -300,6 +300,10 @@ gwhy() { git-why "$@"; }
 - Binary files not supported
 - AI explanations may occasionally misinterpret context
 
+## Featured On
+
+Read the launch article on Dev.to: **[4 CLI Tools Every Developer Needs (That You've Never Heard Of)](https://dev.to/mjmuin/4-cli-tools-every-developer-needs-that-youve-never-heard-of-318b)**
+
 ## Also From MUIN
 
 Love `git-why`? Check out our other developer CLI tools:
