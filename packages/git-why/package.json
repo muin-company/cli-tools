@@ -29,7 +29,12 @@
     "onboarding",
     "commit-history",
     "code-explanation",
-    "technical-debt"
+    "technical-debt",
+    "developer-experience",
+    "dx",
+    "productivity",
+    "git-history-explainer",
+    "code-understanding"
   ],
   "author": "muin",
   "license": "MIT",

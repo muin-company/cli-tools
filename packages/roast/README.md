@@ -7,8 +7,9 @@
 Brutally honest, hilariously harsh AI code reviews — from your terminal.
 
 [![npm version](https://img.shields.io/npm/v/roast-cli?color=red&label=npm)](https://www.npmjs.com/package/roast-cli)
-[![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
-[![node](https://img.shields.io/badge/node-%3E%3D18-green)](https://nodejs.org)
+[![npm downloads](https://img.shields.io/npm/dm/roast-cli.svg)](https://www.npmjs.com/package/roast-cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/node/v/roast-cli.svg)](https://nodejs.org)
 
 <br/>
 
@@ -206,6 +207,14 @@ A: ~$0.001 per roast with `gpt-4o-mini`. Mass roasting your entire codebase cost
 
 **Q: Can I use it with Ollama / local models?**  
 A: Set `OPENAI_BASE_URL` to your local endpoint. Works with any OpenAI-compatible API.
+
+## Also From MUIN
+
+Love `roast`? Check out our other developer CLI tools:
+
+- **[git-why](https://www.npmjs.com/package/git-why)** — AI-powered git history explainer. `roast` tells you what's wrong; `git-why` tells you *why* it got that way.
+- **[oops](https://www.npmjs.com/package/@mj-muin/oops-cli)** — Pipe any error to AI for instant fixes. When `roast` hurts your feelings and you break something, `oops` picks up the pieces.
+- **[portguard](https://www.npmjs.com/package/portguard)** — Monitor and kill zombie processes hogging your ports. Because roasted code still needs to run somewhere.
 
 ## Contributing
 
