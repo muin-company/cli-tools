@@ -1,6 +1,25 @@
-# MUIN CLI Tools
+# 🛠️ MUIN CLI Tools
 
-Interactive CLI tools for developers.
+**10 developer CLI tools** in one monorepo — from brutally honest AI code reviews to smart dependency checks. All installable via npm.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+## Overview
+
+| Tool | Description | Install |
+|------|-------------|---------|
+| 🔥 [roast](./packages/roast) | Gordon Ramsay AI code reviews | `npm i -g roast-cli` |
+| 📐 [json-to-types](./packages/json-to-types) | JSON → TS / Zod / Python types | `npm i -g @muin/json-to-types` |
+| 🔄 [curl-to-code](./packages/curl-to-code) | curl → production-ready code | `npm i -g @muin/curl-to-code` |
+| 📦 [bundlesize](./packages/bundlesize) | Bundle size analysis & tracking | `npm i -g @muin/bundlesize` |
+| 🔑 [envdiff](./packages/envdiff) | Compare .env files & detect drift | `npm i -g @muin/envdiff` |
+| ⚙️ [tsconfig-helper](./packages/tsconfig-helper) | Validate & optimize tsconfig | `npm i -g @muin/tsconfig-helper` |
+| 📝 [readme-gen](./packages/readme-gen) | Auto-generate README files | `npm i -g @muin/readme-gen` |
+| 🔍 [depcheck-lite](./packages/depcheck-lite) | Find unused/missing deps | `npm i -g @muin/depcheck-lite` |
+| 🔒 [lockcheck](./packages/lockcheck) | Validate lock file integrity | `npm i -g @muin/lockcheck` |
+| ⏰ [cron-explain](./packages/cron-explain) | Cron ↔ human-readable text | `npm i -g @muin/cron-explain` |
+
+---
 
 ## Packages
 
