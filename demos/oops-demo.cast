@@ -1,4 +1,4 @@
-{"version": 2, "width": 80, "height": 26, "timestamp": 1711252200, "env": {"SHELL": "/bin/zsh", "TERM": "xterm-256color"}, "theme": {"fg": "#d4d4d4", "bg": "#1e1e1e"}}
+{"version":3,"term":{"cols":80,"rows":26},"timestamp":1711252200,"env":{"SHELL":"/bin/zsh"}}
 [0.5, "o", "\u001b[38;5;39m❯\u001b[0m "]
 [1.0, "o", "npm start"]
 [1.4, "o", "\r\n"]

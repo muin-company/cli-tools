@@ -13,7 +13,7 @@ Brutally honest, hilariously harsh AI code reviews — from your terminal.
 
 <br/>
 
-<img src="./demo/demo.svg" alt="roast demo" width="700"/>
+<img src="./demo.gif" alt="roast demo" width="700"/>
 
 <br/>
 

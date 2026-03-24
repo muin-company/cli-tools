@@ -11,9 +11,9 @@
 
 <br/>
 
-```bash
-npx git-why src/auth.js:42
-```
+<img src="./demo.gif" alt="git-why demo" width="700"/>
+
+<br/>
 
 *AI-powered git history explainer. Understand the "why" behind any line of code.*
 
