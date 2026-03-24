@@ -1,6 +1,6 @@
 {
   "name": "roast-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Gordon Ramsay meets your IDE — brutally honest, hilariously harsh AI code reviews from your terminal",
   "main": "src/index.js",
   "bin": {
@@ -23,7 +23,10 @@
     "code-analysis",
     "openai",
     "gpt",
+    "chatgpt",
     "claude",
+    "anthropic",
+    "llm",
     "funny",
     "brutal-feedback",
     "gordon-ramsay",
@@ -31,7 +34,13 @@
     "dx",
     "productivity",
     "code-smell",
-    "refactoring"
+    "refactoring",
+    "devtools",
+    "automation",
+    "nodejs",
+    "ai-tools",
+    "static-analysis",
+    "code-reviewer"
   ],
   "author": "MUIN <human@muin.company>",
   "license": "MIT",
