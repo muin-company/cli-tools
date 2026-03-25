@@ -312,6 +312,17 @@ Love `git-why`? Check out our other developer CLI tools:
 - **[oops](https://www.npmjs.com/package/@mj-muin/oops-cli)** — Pipe any error to AI for instant fixes. When `git-why` reveals the landmines, `oops` helps defuse them.
 - **[portguard](https://www.npmjs.com/package/portguard)** — Monitor and kill zombie processes hogging your ports.
 
+## Contributing
+
+Found a bug? Have an idea? PRs welcome.
+
+```bash
+git clone https://github.com/muin-company/cli-tools.git
+cd cli-tools/packages/git-why
+npm install
+node src/cli.js src/cli.js:1
+```
+
 ## License
 
 MIT
