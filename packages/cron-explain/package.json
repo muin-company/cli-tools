@@ -1,0 +1,41 @@
+{
+  "name": "@muin/cron-explain",
+  "version": "0.1.0",
+  "description": "Explain cron expressions in human language. Bidirectional: cron → human, human → cron. Zero dependencies.",
+  "main": "index.js",
+  "bin": {
+    "cron-explain": "index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": [
+    "cron",
+    "crontab",
+    "schedule",
+    "explain",
+    "human-readable",
+    "natural-language",
+    "cli",
+    "devtools"
+  ],
+  "author": "MUIN <human@muin.company>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muin-company/cli-tools.git",
+    "directory": "packages/cron-explain"
+  },
+  "homepage": "https://github.com/muin-company/cli-tools/tree/main/packages/cron-explain#readme",
+  "bugs": {
+    "url": "https://github.com/muin-company/cli-tools/issues"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
