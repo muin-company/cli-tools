@@ -1,9 +1,10 @@
 {
-  "name": "@muin/cron-explain",
+  "name": "@mj-muin/cronex",
   "version": "0.1.0",
   "description": "Explain cron expressions in human language. Bidirectional: cron → human, human → cron. Zero dependencies.",
   "main": "index.js",
   "bin": {
+    "cronex": "index.js",
     "cron-explain": "index.js"
   },
   "files": [
@@ -18,11 +19,23 @@
     "cron",
     "crontab",
     "schedule",
+    "scheduler",
     "explain",
     "human-readable",
     "natural-language",
     "cli",
-    "devtools"
+    "devtools",
+    "unix",
+    "linux",
+    "devops",
+    "automation",
+    "parser",
+    "generator",
+    "utility",
+    "script",
+    "terminal",
+    "command-line",
+    "tool"
   ],
   "author": "MUIN <human@muin.company>",
   "license": "MIT",
