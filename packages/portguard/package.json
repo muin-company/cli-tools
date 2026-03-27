@@ -1,0 +1,43 @@
+{
+  "name": "portguard",
+  "version": "0.0.1",
+  "description": "Instantly check what's using your ports — and kill it if needed",
+  "type": "module",
+  "bin": {
+    "portguard": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node test/index.test.js"
+  },
+  "keywords": [
+    "port",
+    "process",
+    "kill",
+    "developer-tools",
+    "debugging",
+    "cli",
+    "devops",
+    "lsof",
+    "network",
+    "port-scanner"
+  ],
+  "author": "MUIN <human@muin.company>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muin-company/cli-tools.git",
+    "directory": "packages/portguard"
+  },
+  "homepage": "https://github.com/muin-company/cli-tools/tree/main/packages/portguard#readme",
+  "bugs": {
+    "url": "https://github.com/muin-company/cli-tools/issues"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ]
+}
