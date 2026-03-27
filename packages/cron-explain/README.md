@@ -20,11 +20,20 @@ Finally understand and generate cron expressions in human language. Bidirectiona
 
 ## Installation
 
+You can install `cron-explain` globally using your preferred package manager:
+
 ```bash
+# npm
 npm install -g @muin/cron-explain
+
+# yarn
+yarn global add @muin/cron-explain
+
+# pnpm
+pnpm add -g @muin/cron-explain
 ```
 
-Or use directly with npx:
+Alternatively, you can run it instantly without installing using `npx`:
 
 ```bash
 npx @muin/cron-explain
@@ -32,22 +41,31 @@ npx @muin/cron-explain
 
 ## Quick Start
 
-### Explain a cron expression:
+Get started quickly with the most common use cases:
 
+### 1. Explain a Cron Expression
+Understand any cryptic cron schedule instantly:
 ```bash
-cron-explain "0 5 * * 1"
-# Output: Every Monday at 5:00 AM
+cron-explain "0 9 * * 1-5"
+# Output: Every weekday (Monday-Friday) at 9:00 AM
 ```
 
-### Generate from natural language:
-
+### 2. Generate from Natural Language
+Create schedules just by typing what you want:
 ```bash
-cron-explain "every day at 3pm"
-# Output: 0 15 * * *
+cron-explain "every monday at 9am"
+# Output: 0 9 * * 1
 ```
 
-### Interactive mode (recommended):
+### 3. Check Next Run Times
+See exactly when your schedule will execute:
+```bash
+cron-explain "0 2 * * 0" --next 3
+# Shows the next 3 times the cron will run
+```
 
+### 4. Interactive Mode (Recommended)
+Use the visual builder to explore and create expressions interactively:
 ```bash
 cron-explain --interactive
 ```
