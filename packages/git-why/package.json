@@ -1,6 +1,6 @@
 {
   "name": "git-why",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Git blame tells you who. git-why tells you WHY. AI-powered git history explainer.",
   "main": "lib/git-why.js",
   "bin": {
