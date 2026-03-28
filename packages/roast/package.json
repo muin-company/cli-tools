@@ -1,7 +1,7 @@
 {
   "name": "roast-cli",
   "version": "1.0.2",
-  "description": "Gordon Ramsay meets your IDE — brutally honest, hilariously harsh AI code reviews from your terminal",
+  "description": "Gordon Ramsay meets your IDE \u2014 brutally honest, hilariously harsh AI code reviews from your terminal",
   "main": "src/index.js",
   "bin": {
     "roast": "src/cli.js"
@@ -40,7 +40,13 @@
     "nodejs",
     "ai-tools",
     "static-analysis",
-    "code-reviewer"
+    "code-reviewer",
+    "terminal",
+    "npx",
+    "code-roast",
+    "pr-review",
+    "github-actions",
+    "ci"
   ],
   "author": "MUIN <human@muin.company>",
   "license": "MIT",

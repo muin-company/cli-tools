@@ -5,7 +5,8 @@
 **Git blame tells you *who*. git-why tells you *WHY*.**
 
 [![npm version](https://img.shields.io/npm/v/git-why?color=blue&label=npm)](https://www.npmjs.com/package/git-why)
-[![npm downloads](https://img.shields.io/npm/dm/git-why.svg)](https://www.npmjs.com/package/git-why)
+[![npm downloads/week](https://img.shields.io/npm/dw/git-why.svg)](https://www.npmjs.com/package/git-why)
+[![npm downloads/month](https://img.shields.io/npm/dm/git-why.svg)](https://www.npmjs.com/package/git-why)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/node/v/git-why.svg)](https://nodejs.org)
 
@@ -309,7 +310,7 @@ Read the launch article on Dev.to: **[4 CLI Tools Every Developer Needs (That Yo
 Love `git-why`? Check out our other developer CLI tools:
 
 - **[roast-cli](https://www.npmjs.com/package/roast-cli)** — AI code reviews with Gordon Ramsay energy. Understand the *why* with `git-why`, then get brutally honest feedback with `roast`.
-- **[oops](https://www.npmjs.com/package/@mj-muin/oops-cli)** — Pipe any error to AI for instant fixes. When `git-why` reveals the landmines, `oops` helps defuse them.
+- **[oops-ai](https://www.npmjs.com/package/oops-ai)** — Pipe any error to AI for instant fixes. When `git-why` reveals the landmines, `oops` helps defuse them.
 - **[portguard](https://www.npmjs.com/package/portguard)** — Monitor and kill zombie processes hogging your ports.
 
 ## Contributing

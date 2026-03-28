@@ -34,7 +34,15 @@
     "dx",
     "productivity",
     "git-history-explainer",
-    "code-understanding"
+    "code-understanding",
+    "terminal",
+    "npx",
+    "git-archaeology",
+    "understand-code",
+    "code-context",
+    "git-explain",
+    "git-addon",
+    "nodejs"
   ],
   "author": "muin",
   "license": "MIT",

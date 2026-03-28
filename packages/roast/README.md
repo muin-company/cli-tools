@@ -7,7 +7,8 @@
 Brutally honest, hilariously harsh AI code reviews — from your terminal.
 
 [![npm version](https://img.shields.io/npm/v/roast-cli?color=red&label=npm)](https://www.npmjs.com/package/roast-cli)
-[![npm downloads](https://img.shields.io/npm/dm/roast-cli.svg)](https://www.npmjs.com/package/roast-cli)
+[![npm downloads/week](https://img.shields.io/npm/dw/roast-cli.svg)](https://www.npmjs.com/package/roast-cli)
+[![npm downloads/month](https://img.shields.io/npm/dm/roast-cli.svg)](https://www.npmjs.com/package/roast-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/node/v/roast-cli.svg)](https://nodejs.org)
 
@@ -217,7 +218,7 @@ Read the launch article on Dev.to: **[4 CLI Tools Every Developer Needs (That Yo
 Love `roast`? Check out our other developer CLI tools:
 
 - **[git-why](https://www.npmjs.com/package/git-why)** — AI-powered git history explainer. `roast` tells you what's wrong; `git-why` tells you *why* it got that way.
-- **[oops](https://www.npmjs.com/package/@mj-muin/oops-cli)** — Pipe any error to AI for instant fixes. When `roast` hurts your feelings and you break something, `oops` picks up the pieces.
+- **[oops-ai](https://www.npmjs.com/package/oops-ai)** — Pipe any error to AI for instant fixes. When `roast` hurts your feelings and you break something, `oops` picks up the pieces.
 - **[portguard](https://www.npmjs.com/package/portguard)** — Monitor and kill zombie processes hogging your ports. Because roasted code still needs to run somewhere.
 
 ## Contributing
