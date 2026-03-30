@@ -44,28 +44,41 @@ Meanwhile, your actual code problems — pyramid of doom, god functions, cargo-c
 ## Quick Start
 
 ```bash
-npx roast-cli app.js       # Roast any file instantly
+npx roast-cli app.js       # Roast any file instantly (no install needed!)
 ```
 
-> Requires `OPENAI_API_KEY` env var. Get one at [platform.openai.com](https://platform.openai.com/api-keys).
+> Requires an AI provider API key (see [Configuration](#configuration) below).
 
 Or install globally:
 
 ```bash
+# NPM
 npm install -g roast-cli
+
+# Yarn
+yarn global add roast-cli
+
+# PNPM
+pnpm add -g roast-cli
+
+# Verify installation
+roast --version
 ```
 
 ## Usage
 
 ```bash
-# Roast a file (default: brutal mode)
+# Roast a file (default: medium severity)
 roast server.js
 
 # Be gentle about it
-roast --level mild utils.py
+roast --severity mild utils.py
 
-# Medium spice
-roast --level medium handler.go
+# Medium spice (default)
+roast --severity medium handler.go
+
+# Gordon Ramsay mode 🔥
+roast --severity harsh spaghetti.js
 
 # Roast in Korean (or any supported language)
 roast app.js --output-lang ko
@@ -150,20 +163,36 @@ itself. Barely.
 </tr>
 </table>
 
-## Multilingual Support
+## Multilingual Support (v1.1.0+)
 
 `roast` can output in multiple languages using the `--output-lang` flag:
 
 ```bash
-roast app.js --output-lang ko    # Korean
-roast app.js --output-lang ja    # Japanese
-roast app.js --output-lang es    # Spanish
-roast app.js --output-lang fr    # French
-roast app.js --output-lang de    # German
-roast app.js --output-lang en    # English (default)
+# Korean — 한국어로 욕먹기
+roast app.js --output-lang ko
+# Output: "🔥 2026년에 var를 쓰다니... 플로피 디스크로 코딩하시나요?"
+
+# Japanese — 日本語で叱られる
+roast app.js --output-lang ja
+# Output: "🔥 varを使うとは...まるで昭和のコードだな！"
+
+# Spanish — Insultos en español
+roast app.js --output-lang es
+# Output: "🔥 ¿var en 2026? ¡Esto es una reliquia!"
+
+# French — Critiques françaises
+roast app.js --output-lang fr
+# Output: "🔥 var? C'est du code préhistorique!"
+
+# German — Deutsche Kritik
+roast app.js --output-lang de
+# Output: "🔥 var im Jahr 2026? Das ist museumswürdig!"
+
+# English (default)
+roast app.js --output-lang en
 ```
 
-The AI maintains the same roasting personality in each language — Gordon Ramsay screams in any tongue.
+**The AI maintains the same roasting personality in each language** — Gordon Ramsay screams in any tongue with culturally-adapted insults.
 
 ## Configuration
 
@@ -171,18 +200,39 @@ The AI maintains the same roasting personality in each language — Gordon Ramsa
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENAI_API_KEY` | ✅ | — | Your OpenAI API key |
-| `ROAST_MODEL` | | `gpt-4o-mini` | Default model |
-| `ROAST_LEVEL` | | `brutal` | Default roast intensity |
+| `ANTHROPIC_API_KEY` | One required | — | Anthropic API key (Claude models, recommended) |
+| `OPENAI_API_KEY` | One required | — | OpenAI API key (GPT models) |
+| `ROAST_MODEL` | | Auto-detect | Default model (overrides auto-detection) |
+| `ROAST_SEVERITY` | | `medium` | Default severity (`mild`, `medium`, `harsh`) |
+
+**Setup your API key:**
+
+```bash
+# Anthropic (recommended) — Get one at console.anthropic.com
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# Or OpenAI — Get one at platform.openai.com
+export OPENAI_API_KEY="sk-..."
+
+# Add to your shell profile for persistence (~/.zshrc, ~/.bashrc)
+echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.zshrc
+```
 
 ### Supported Models
 
-Any OpenAI-compatible model works:
+**Anthropic (recommended):**
+- `claude-sonnet-4-5-20250929` — Best quality/speed balance (default if ANTHROPIC_API_KEY set)
+- `claude-opus-4-6` — Highest quality roasts
+- `claude-haiku-3-5-20241022` — Fast & cheap
 
-- `gpt-4o-mini` — Fast & cheap (default)
+**OpenAI:**
+- `gpt-4o-mini` — Fast & cheap (default if OPENAI_API_KEY set)
 - `gpt-4o` — Smarter roasts
 - `gpt-4-turbo` — Premium burns
-- Any OpenAI-compatible API (Ollama, Together, etc.)
+
+**Custom/Local:**
+- Any OpenAI-compatible API (Ollama, Together, LocalAI, etc.)
+- Set `OPENAI_BASE_URL` to your endpoint
 
 ## Use Cases
 
@@ -192,21 +242,21 @@ Any OpenAI-compatible model works:
 - **CI gate** — Auto-roast PRs in GitHub Actions. Real feedback, not just lint warnings.
 - **Learning tool** — Students get memorable feedback that sticks (nobody forgets being called out by Gordon Ramsay).
 
-## CI/CD Integration
+## CI/CD Integration (v1.2.0+)
 
 ### JSON Output for Automation
 
-Get machine-readable output for CI/CD pipelines:
+Get machine-readable output for CI/CD pipelines using the `--json` flag:
 
 ```bash
 roast src/app.js --json
 ```
 
-**Output example:**
+**Output schema:**
 
 ```json
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "timestamp": "2026-03-30T12:00:00Z",
   "file_path": "src/app.js",
   "file_name": "app.js",
@@ -242,6 +292,52 @@ roast src/app.js --json
 }
 ```
 
+### JSON Schema Documentation
+
+**Top-level fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | string | roast-cli version |
+| `timestamp` | ISO 8601 | When the review was generated |
+| `file_path` | string | Full path to the reviewed file |
+| `file_name` | string | File name only |
+| `language` | string | Detected programming language |
+| `mode` | string | `"roast"` or `"serious"` |
+| `severity` | string | `"mild"`, `"medium"`, or `"harsh"` |
+| `model` | string | AI model used for the review |
+| `summary` | object | Aggregated statistics (see below) |
+| `issues` | array | List of detected issues (see below) |
+| `raw_review` | string | Full human-readable review text |
+
+**Summary object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `total_issues` | number | Total number of issues found |
+| `critical_count` | number | Critical severity issues |
+| `warning_count` | number | Warning severity issues |
+| `suggestion_count` | number | Suggestions for improvement |
+| `compliment_count` | number | Positive highlights |
+| `roast_count` | number | Roast-style comments |
+| `has_security_issues` | boolean | Any security vulnerabilities detected |
+| `has_performance_issues` | boolean | Any performance problems detected |
+| `has_bugs` | boolean | Any bugs detected |
+
+**Issue object:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique issue identifier |
+| `type` | string | `"critical"`, `"warning"`, `"suggestion"`, `"compliment"`, `"roast"` |
+| `severity` | string | `"high"`, `"medium"`, `"low"` |
+| `category` | string | `"security"`, `"performance"`, `"bug"`, `"style"`, `"best-practice"` |
+| `title` | string | Short issue description |
+| `description` | string | Detailed explanation |
+| `code_snippet` | string (optional) | Problematic code |
+| `line_number` | number (optional) | Line where issue occurs |
+| `suggestion` | string (optional) | How to fix it |
+
 ### GitHub Actions Example
 
 Add roast to your PR pipeline:
@@ -256,6 +352,8 @@ on:
       - '**.js'
       - '**.ts'
       - '**.py'
+      - '**.go'
+      - '**.java'
 
 jobs:
   roast:
@@ -268,7 +366,7 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install roast
+      - name: Install roast-cli
         run: npm install -g roast-cli
       
       - name: Get changed files
@@ -279,13 +377,15 @@ jobs:
             **.js
             **.ts
             **.py
+            **.go
+            **.java
       
       - name: Roast changed files
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             echo "🔥 Roasting $file"
-            roast "$file" --json --severity medium > "roast-$file.json"
+            roast "$file" --json --severity medium > "roast-$(echo $file | tr '/' '-').json"
           done
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -295,8 +395,85 @@ jobs:
           CRITICAL=$(cat roast-*.json | jq -s 'map(.summary.critical_count) | add')
           if [ "$CRITICAL" -gt 0 ]; then
             echo "❌ Found $CRITICAL critical issues"
+            cat roast-*.json | jq '.issues[] | select(.type == "critical")'
             exit 1
           fi
+          echo "✅ No critical issues found"
+      
+      - name: Upload roast reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: roast-reports
+          path: roast-*.json
+```
+
+### GitLab CI Example
+
+```yaml
+# .gitlab-ci.yml
+roast:
+  stage: test
+  image: node:20
+  before_script:
+    - npm install -g roast-cli
+  script:
+    - |
+      for file in $(git diff --name-only --diff-filter=ACMR $CI_MERGE_REQUEST_DIFF_BASE_SHA | grep -E '\.(js|ts|py)$'); do
+        echo "🔥 Roasting $file"
+        roast "$file" --json --severity medium > "roast-${file//\//-}.json"
+      done
+    - |
+      CRITICAL=$(cat roast-*.json | jq -s 'map(.summary.critical_count) | add')
+      if [ "$CRITICAL" -gt 0 ]; then
+        echo "❌ Found $CRITICAL critical issues"
+        exit 1
+      fi
+  artifacts:
+    when: always
+    paths:
+      - roast-*.json
+  only:
+    - merge_requests
+```
+
+### CircleCI Example
+
+```yaml
+# .circleci/config.yml
+version: 2.1
+
+jobs:
+  roast:
+    docker:
+      - image: cimg/node:20.0
+    steps:
+      - checkout
+      - run:
+          name: Install roast-cli
+          command: npm install -g roast-cli
+      - run:
+          name: Roast changed files
+          command: |
+            git diff --name-only HEAD~1 | grep -E '\.(js|ts|py)$' | while read file; do
+              echo "🔥 Roasting $file"
+              roast "$file" --json > "roast-${file//\//-}.json"
+            done
+      - run:
+          name: Check for critical issues
+          command: |
+            CRITICAL=$(cat roast-*.json | jq -s 'map(.summary.critical_count) | add')
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "❌ Found $CRITICAL critical issues"
+              exit 1
+            fi
+      - store_artifacts:
+          path: roast-*.json
+
+workflows:
+  main:
+    jobs:
+      - roast
 ```
 
 ## vs Alternatives
