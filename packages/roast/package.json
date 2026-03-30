@@ -1,6 +1,6 @@
 {
   "name": "roast-cli",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Gordon Ramsay meets your IDE — brutally honest, hilariously harsh AI code reviews from your terminal",
   "main": "src/index.js",
   "bin": {
@@ -80,5 +80,6 @@
     "src/",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "type": "module"
 }
