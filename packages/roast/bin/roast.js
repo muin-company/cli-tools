@@ -19,6 +19,7 @@ program
   .option('-s, --serious', 'serious mode (professional review)')
   .option('--severity <level>', 'roast severity: mild, medium, harsh', 'medium')
   .option('-m, --model <model>', 'AI model to use', 'claude-sonnet-4-5-20250929')
+  .option('--json', 'output as JSON (for CI/CD integration)')
   .option('--no-color', 'disable colors')
   .action(async (file, options) => {
     try {

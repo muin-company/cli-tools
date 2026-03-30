@@ -111,37 +111,42 @@ export async function roastFile(filePath, options = {}) {
     );
   }
 
-  // Display header
-  console.log('');
-  if (options.serious) {
-    console.log(chalk.blue.bold('📋 Professional Code Review'));
-    console.log(chalk.gray(`File: ${fileName} (${language})`));
-  } else {
-    const severity = options.severity || 'medium';
-    const headers = {
-      mild: chalk.yellow.bold('😊 CODE REVIEW (Be Nice Mode)'),
-      medium: chalk.red.bold('🔥 CODE ROAST 🔥'),
-      harsh: chalk.red.bold('💀 CODE EXECUTION 💀')
-    };
-    console.log(headers[severity]);
-    console.log(chalk.gray(`Victim: ${fileName} (${language})`));
-    if (severity === 'harsh') {
-      console.log(chalk.red('⚠️  WARNING: Brutally honest mode enabled'));
-    } else if (severity === 'mild') {
-      console.log(chalk.green('✨ Friendly feedback mode'));
+  // Display header (skip if JSON mode)
+  if (!options.json) {
+    console.log('');
+    if (options.serious) {
+      console.log(chalk.blue.bold('📋 Professional Code Review'));
+      console.log(chalk.gray(`File: ${fileName} (${language})`));
+    } else {
+      const severity = options.severity || 'medium';
+      const headers = {
+        mild: chalk.yellow.bold('😊 CODE REVIEW (Be Nice Mode)'),
+        medium: chalk.red.bold('🔥 CODE ROAST 🔥'),
+        harsh: chalk.red.bold('💀 CODE EXECUTION 💀')
+      };
+      console.log(headers[severity]);
+      console.log(chalk.gray(`Victim: ${fileName} (${language})`));
+      if (severity === 'harsh') {
+        console.log(chalk.red('⚠️  WARNING: Brutally honest mode enabled'));
+      } else if (severity === 'mild') {
+        console.log(chalk.green('✨ Friendly feedback mode'));
+      }
     }
+    console.log(chalk.gray('─'.repeat(50)));
+    console.log('');
   }
-  console.log(chalk.gray('─'.repeat(50)));
-  console.log('');
 
   // Call Anthropic API
   const client = new Anthropic({ apiKey });
   
-  const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  let i = 0;
-  const interval = setInterval(() => {
-    process.stdout.write(`\r${chalk.cyan(spinner[i++ % spinner.length])} Analyzing...`);
-  }, 80);
+  let interval;
+  if (!options.json) {
+    const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let i = 0;
+    interval = setInterval(() => {
+      process.stdout.write(`\r${chalk.cyan(spinner[i++ % spinner.length])} Analyzing...`);
+    }, 80);
+  }
 
   try {
     let prompt;
@@ -166,10 +171,29 @@ export async function roastFile(filePath, options = {}) {
       }]
     });
 
-    clearInterval(interval);
-    process.stdout.write('\r' + ' '.repeat(20) + '\r');
+    if (interval) {
+      clearInterval(interval);
+      process.stdout.write('\r' + ' '.repeat(20) + '\r');
+    }
 
     const review = message.content[0].text;
+    
+    // JSON output mode
+    if (options.json) {
+      const { parseReviewToJSON } = await import('./json-parser.js');
+      const metadata = {
+        filePath,
+        fileName,
+        language,
+        mode: options.serious ? 'serious' : 'roast',
+        severity: options.serious ? null : (options.severity || 'medium'),
+        model: options.model,
+        code
+      };
+      const result = parseReviewToJSON(review, metadata);
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
     
     // Colorize output
     const colorized = review
@@ -192,8 +216,10 @@ export async function roastFile(filePath, options = {}) {
     console.log('');
 
   } catch (error) {
-    clearInterval(interval);
-    process.stdout.write('\r' + ' '.repeat(20) + '\r');
+    if (interval) {
+      clearInterval(interval);
+      process.stdout.write('\r' + ' '.repeat(20) + '\r');
+    }
     throw error;
   }
 }

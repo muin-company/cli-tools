@@ -84,9 +84,11 @@ async function callAI(messages, model) {
   return data.choices[0].message.content;
 }
 
-async function printRoast(text, flags) {
+async function printRoast(text, flags, metadata = {}) {
   if (flags.json) {
-    console.log(JSON.stringify({ roast: text }));
+    const { parseReviewToJSON } = await import('./json-parser.js');
+    const result = parseReviewToJSON(text, metadata);
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
 
@@ -113,7 +115,7 @@ export async function roastFile(filepath, flags = {}) {
   const filename = basename(filepath);
 
   const [{ default: ora }] = await Promise.all([import('ora')]);
-  const spinner = ora(`Roasting ${filename}...`).start();
+  const spinner = flags.json ? null : ora(`Roasting ${filename}...`).start();
 
   const messages = buildPrompt(code, { 
     level: flags.level, 
@@ -122,9 +124,20 @@ export async function roastFile(filepath, flags = {}) {
     outputLang: flags.outputLang
   });
   const result = await callAI(messages, flags.model);
-  spinner.stop();
+  if (spinner) spinner.stop();
 
-  await printRoast(result, flags);
+  // Prepare metadata for JSON output
+  const metadata = {
+    filePath: filepath,
+    fileName: filename,
+    language: lang,
+    mode: 'roast',
+    severity: flags.level,
+    model: flags.model,
+    code: code
+  };
+
+  await printRoast(result, flags, metadata);
 }
 
 export async function roastStdin(flags = {}) {
@@ -138,7 +151,7 @@ export async function roastStdin(flags = {}) {
   }
 
   const [{ default: ora }] = await Promise.all([import('ora')]);
-  const spinner = ora('Roasting...').start();
+  const spinner = flags.json ? null : ora('Roasting...').start();
 
   const isDiff = flags.diff;
   const lang = flags.lang || (isDiff ? 'diff' : 'Unknown');
@@ -149,7 +162,18 @@ export async function roastStdin(flags = {}) {
     outputLang: flags.outputLang
   });
   const result = await callAI(messages, flags.model);
-  spinner.stop();
+  if (spinner) spinner.stop();
 
-  await printRoast(result, flags);
+  // Prepare metadata for JSON output
+  const metadata = {
+    filePath: 'stdin',
+    fileName: 'stdin',
+    language: lang,
+    mode: 'roast',
+    severity: flags.level,
+    model: flags.model,
+    code: code
+  };
+
+  await printRoast(result, flags, metadata);
 }

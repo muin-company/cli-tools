@@ -76,8 +76,11 @@ git diff --staged | roast --diff --output-lang ja
 # Pipe from anywhere
 cat spaghetti.rb | roast
 
-# JSON output for CI integration
-roast --json src/index.ts
+# JSON output for CI/CD integration (machine-readable)
+roast app.js --json | jq '.summary'
+
+# Serious mode (professional review, no roasting)
+roast --serious production.py
 
 # Use a specific model
 roast --model gpt-4o legacy-code.java
@@ -189,17 +192,111 @@ Any OpenAI-compatible model works:
 - **CI gate** — Auto-roast PRs in GitHub Actions. Real feedback, not just lint warnings.
 - **Learning tool** — Students get memorable feedback that sticks (nobody forgets being called out by Gordon Ramsay).
 
-## CI Integration
+## CI/CD Integration
 
-Add roast to your PR pipeline for code review with personality:
+### JSON Output for Automation
+
+Get machine-readable output for CI/CD pipelines:
+
+```bash
+roast src/app.js --json
+```
+
+**Output example:**
+
+```json
+{
+  "version": "1.1.0",
+  "timestamp": "2026-03-30T12:00:00Z",
+  "file_path": "src/app.js",
+  "file_name": "app.js",
+  "language": "JavaScript",
+  "mode": "roast",
+  "severity": "medium",
+  "model": "claude-sonnet-4-5-20250929",
+  "summary": {
+    "total_issues": 5,
+    "critical_count": 1,
+    "warning_count": 2,
+    "suggestion_count": 0,
+    "compliment_count": 1,
+    "roast_count": 1,
+    "has_security_issues": true,
+    "has_performance_issues": false,
+    "has_bugs": false
+  },
+  "issues": [
+    {
+      "id": "issue-1",
+      "type": "critical",
+      "severity": "high",
+      "category": "security",
+      "title": "SQL Injection vulnerability",
+      "description": "Direct string interpolation in SQL query without sanitization...",
+      "code_snippet": "const query = `SELECT * FROM users WHERE id = ${userId}`;",
+      "line_number": 42,
+      "suggestion": "Use parameterized queries or an ORM..."
+    }
+  ],
+  "raw_review": "🔥 CODE ROAST 🔥\n\n🚨 SQL Injection..."
+}
+```
+
+### GitHub Actions Example
+
+Add roast to your PR pipeline:
 
 ```yaml
 # .github/workflows/roast.yml
-- name: Roast PR changes
-  run: |
-    git diff origin/main...HEAD -- '*.js' '*.ts' | roast --diff --json
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+name: Roast PR
+
+on:
+  pull_request:
+    paths:
+      - '**.js'
+      - '**.ts'
+      - '**.py'
+
+jobs:
+  roast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install roast
+        run: npm install -g roast-cli
+      
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **.js
+            **.ts
+            **.py
+      
+      - name: Roast changed files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            echo "🔥 Roasting $file"
+            roast "$file" --json --severity medium > "roast-$file.json"
+          done
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      
+      - name: Check for critical issues
+        run: |
+          CRITICAL=$(cat roast-*.json | jq -s 'map(.summary.critical_count) | add')
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "❌ Found $CRITICAL critical issues"
+            exit 1
+          fi
 ```
 
 ## vs Alternatives

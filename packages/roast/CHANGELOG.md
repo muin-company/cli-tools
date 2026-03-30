@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.2.0] - 2026-03-30 (TBD)
+
+### Added
+- **JSON output mode** via `--json` flag for CI/CD integration
+  - Structured issue parsing with emoji-based detection (🚨 🔥 ⚠️ 💡 ✨)
+  - Line number extraction from review text
+  - Machine-readable summary statistics (critical_count, warning_count, etc.)
+  - Categorized issues (security, bug, performance, code_quality, etc.)
+  - Code snippet extraction from review text
+  - Full schema: version, timestamp, file metadata, issues array, raw review
+- `parseReviewToJSON()` utility for converting AI reviews to structured data
+- Support for both Anthropic Claude and OpenAI models
+- Comprehensive JSON parser test suite
+
+### Changed
+- Updated `lib/roast.js` to support `--json` flag
+- Added `lib/json-parser.js` with intelligent review parsing
+- Enhanced README with JSON output examples and GitHub Actions integration guide
+- CLI now suppresses spinner in JSON mode for clean output
+
+### Technical Details
+- Smart emoji detection for issue classification (critical/warning/roast/suggestion/compliment)
+- Line number regex patterns: "Line 42", "Lines 10-15", "line 5"
+- Code block extraction from markdown-style triple backticks
+- Suggestion attachment to parent issues (💡 lines don't create separate issues)
+- Header filtering (skips "🔥 CODE ROAST 🔥" banner lines)
+- No breaking changes - text output remains default
+
 ## [1.1.0] - 2026-03-30
 
 ### Added
