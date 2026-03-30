@@ -4,7 +4,7 @@
 
 **Gordon Ramsay meets your IDE.**
 
-Brutally honest, hilariously harsh AI code reviews — from your terminal.
+The AI-powered linter that brutally roasts your code — hilariously harsh AI code reviews from your terminal.
 
 [![npm version](https://img.shields.io/npm/v/roast-cli?color=red&label=npm)](https://www.npmjs.com/package/roast-cli)
 [![npm downloads/week](https://img.shields.io/npm/dw/roast-cli.svg)](https://www.npmjs.com/package/roast-cli)
@@ -21,6 +21,12 @@ Brutally honest, hilariously harsh AI code reviews — from your terminal.
 *Your linter tells you what's wrong. Roast tells you why you should be ashamed.*
 
 </div>
+
+---
+
+## Keywords
+
+AI linter · AI code review · Gordon Ramsay code review · roast CLI · AI-powered linting · Code quality tool
 
 ---
 
@@ -483,9 +489,9 @@ workflows:
 | ESLint | Rule-based linting | 🤖 "Line 12: missing semicolon" |
 | SonarQube | Enterprise code quality | 📊 47-page PDF |
 | CodeRabbit | AI PR review | 🐰 Polite suggestions |
-| **roast** | **AI code roasting** | **🔥 "This code is DISGUSTING!"** |
+| **roast** | **AI linter with personality** | **🔥 "This code is DISGUSTING!"** |
 
-`roast` isn't a replacement for your linter. It's the brutal honesty your linter is too polite to give you. Use both.
+`roast` isn't a replacement for traditional linters. It's the AI-powered code review tool that gives you the brutal honesty your static analyzers are too polite to deliver. Use both.
 
 ## FAQ
 
