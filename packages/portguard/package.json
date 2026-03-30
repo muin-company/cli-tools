@@ -10,16 +10,21 @@
     "test": "node test/index.test.js"
   },
   "keywords": [
+    "port-killer",
+    "eaddrinuse",
+    "port-conflict",
+    "localhost-fix",
+    "kill-port",
+    "port-scanner",
+    "process-manager",
     "port",
-    "process",
-    "kill",
-    "developer-tools",
-    "debugging",
     "cli",
     "devops",
-    "lsof",
+    "developer-tools",
+    "debugging",
     "network",
-    "port-scanner"
+    "lsof",
+    "address-in-use"
   ],
   "author": "MUIN <human@muin.company>",
   "license": "MIT",
