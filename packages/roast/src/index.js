@@ -23,14 +23,30 @@ const LANG_MAP = {
   '.sh': 'Shell', '.bash': 'Bash',
 };
 
+const LANG_NAMES = {
+  en: 'English',
+  ko: 'Korean',
+  ja: 'Japanese',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+};
+
 function detectLanguage(filename) {
   const ext = extname(filename).toLowerCase();
   return LANG_MAP[ext] || 'Unknown';
 }
 
 function buildPrompt(code, options = {}) {
-  const { level = 'brutal', lang = 'Unknown', filename = 'stdin', isDiff = false } = options;
-  const persona = PERSONAS[level] || PERSONAS.brutal;
+  const { level = 'brutal', lang = 'Unknown', filename = 'stdin', isDiff = false, outputLang = 'en' } = options;
+  let persona = PERSONAS[level] || PERSONAS.brutal;
+  
+  // Add output language instruction (only if not English)
+  if (outputLang !== 'en') {
+    const langName = LANG_NAMES[outputLang] || outputLang;
+    persona += `\n\n**Important: Reply entirely in ${langName}.**`;
+  }
+
   const context = isDiff ? 'a git diff' : `a ${lang} file called "${filename}"`;
 
   return [
@@ -99,7 +115,12 @@ export async function roastFile(filepath, flags = {}) {
   const [{ default: ora }] = await Promise.all([import('ora')]);
   const spinner = ora(`Roasting ${filename}...`).start();
 
-  const messages = buildPrompt(code, { level: flags.level, lang, filename });
+  const messages = buildPrompt(code, { 
+    level: flags.level, 
+    lang, 
+    filename,
+    outputLang: flags.outputLang
+  });
   const result = await callAI(messages, flags.model);
   spinner.stop();
 
@@ -121,7 +142,12 @@ export async function roastStdin(flags = {}) {
 
   const isDiff = flags.diff;
   const lang = flags.lang || (isDiff ? 'diff' : 'Unknown');
-  const messages = buildPrompt(code, { level: flags.level, lang, isDiff });
+  const messages = buildPrompt(code, { 
+    level: flags.level, 
+    lang, 
+    isDiff,
+    outputLang: flags.outputLang
+  });
   const result = await callAI(messages, flags.model);
   spinner.stop();
 

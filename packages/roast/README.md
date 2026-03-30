@@ -67,8 +67,11 @@ roast --level mild utils.py
 # Medium spice
 roast --level medium handler.go
 
-# Roast your staged git changes
-git diff --staged | roast --diff
+# Roast in Korean (or any supported language)
+roast app.js --output-lang ko
+
+# Roast your staged git changes in Japanese
+git diff --staged | roast --diff --output-lang ja
 
 # Pipe from anywhere
 cat spaghetti.rb | roast
@@ -143,6 +146,21 @@ itself. Barely.
 </td>
 </tr>
 </table>
+
+## Multilingual Support
+
+`roast` can output in multiple languages using the `--output-lang` flag:
+
+```bash
+roast app.js --output-lang ko    # Korean
+roast app.js --output-lang ja    # Japanese
+roast app.js --output-lang es    # Spanish
+roast app.js --output-lang fr    # French
+roast app.js --output-lang de    # German
+roast app.js --output-lang en    # English (default)
+```
+
+The AI maintains the same roasting personality in each language — Gordon Ramsay screams in any tongue.
 
 ## Configuration
 

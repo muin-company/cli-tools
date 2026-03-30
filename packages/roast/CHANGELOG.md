@@ -1,23 +1,24 @@
 # Changelog
 
-All notable changes to `@muin/roast` will be documented in this file.
+## [1.1.0] - 2026-03-30
 
-## [0.0.1] - 2026-03-27
+### Added
+- **Multilingual output support** via `--output-lang` flag
+  - Supported languages: English (en), Korean (ko), Japanese (ja), Spanish (es), French (fr), German (de)
+  - Default: English (maintains backward compatibility)
+  - AI maintains personality in all languages (Gordon Ramsay roasts in any tongue)
+- Output language validation with helpful error messages
+- Environment variable support for default language (future enhancement ready)
 
-### 🎉 Initial Release (Day 48)
+### Changed
+- Updated CLI help text to include multilingual examples
+- Enhanced README with multilingual usage section
+- Bumped version to 1.1.0 (minor feature release)
 
-First public release of the AI code roaster.
+### Technical Details
+- Modified `buildPrompt()` to append language instruction to system prompt
+- Added `LANG_NAMES` mapping for supported languages
+- Updated both `roastFile()` and `roastStdin()` to pass `outputLang` option
+- No breaking changes - fully backward compatible
 
-#### Features
-- **Roast mode** — Gordon Ramsay-style code reviews with humor and actionable feedback
-- **Serious mode** (`--serious`) — Professional code review without the jokes
-- **Severity levels** — `mild`, `medium` (default), `harsh` for different roast intensities
-- **16 languages supported** — JS, TS, Python, Go, Rust, Java, C/C++, Ruby, PHP, Swift, Kotlin, Shell, SQL, HTML, CSS
-- **stdin support** — Pipe code or git diffs directly: `git diff | roast`
-- **Custom model** — Use any Claude model with `--model`
-- **Colorized output** — Beautiful terminal output with emoji and chalk colors
-
-#### Technical
-- Built with Commander.js + Chalk + Anthropic SDK
-- ESM module (`"type": "module"`)
-- Requires Node.js ≥ 18
+## [1.0.3] - Previous release
