@@ -3,13 +3,8 @@
  * Converts AI review text to structured JSON format
  */
 
-import { basename, extname } from 'path';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const { basename, extname, dirname, join } = require('path');
+const { readFileSync } = require('fs');
 
 const LANGUAGE_MAP = {
   '.js': 'JavaScript',
@@ -38,7 +33,7 @@ const LANGUAGE_MAP = {
  * @param {Object} metadata - File/run metadata
  * @returns {Object} Structured JSON result
  */
-export function parseReviewToJSON(reviewText, metadata = {}) {
+function parseReviewToJSON(reviewText, metadata = {}) {
   const {
     filePath,
     fileName,
@@ -374,7 +369,13 @@ function getPackageVersion() {
 /**
  * Detect language from file extension
  */
-export function detectLanguage(filepath) {
+function detectLanguage(filepath) {
   const ext = extname(filepath).toLowerCase();
   return LANGUAGE_MAP[ext] || 'Unknown';
 }
+
+// CommonJS exports
+module.exports = {
+  parseReviewToJSON,
+  detectLanguage
+};
