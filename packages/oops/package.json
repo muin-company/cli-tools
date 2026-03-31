@@ -1,13 +1,13 @@
 {
   "name": "oops-cli",
-  "version": "0.0.1",
+  "version": "1.1.0",
   "description": "AI-powered error message explainer — paste an error, get a human-readable explanation and fix suggestions",
   "main": "src/index.js",
   "bin": {
     "oops": "src/cli.js"
   },
   "scripts": {
-    "test": "node test/index.test.js"
+    "test": "node test/json-output.test.js"
   },
   "keywords": [
     "error",

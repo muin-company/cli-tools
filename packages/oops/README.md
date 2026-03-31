@@ -38,10 +38,30 @@ oops --stack "Error: ECONNREFUSED 127.0.0.1:5432
     at TCPConnectWrap.afterConnect [as oncomplete] (net.js:1141:16)"
 ```
 
-### JSON output — machine-readable results
+### JSON output — machine-readable results (CI/CD ready)
 
 ```bash
 oops "TypeError: Assignment to constant variable" --json
+```
+
+**Example output:**
+```json
+{
+  "error": "TypeError: Assignment to constant variable",
+  "errorType": "TypeError",
+  "explanation": "You tried to reassign a value to a constant variable declared with `const`.",
+  "solution": "Use `let` instead of `const` if the variable needs to be reassigned, or avoid reassigning the constant.",
+  "rootCause": "JavaScript constants are immutable references and cannot be reassigned after declaration.",
+  "context": {
+    "file": null,
+    "line": 0,
+    "column": null,
+    "codeSnippet": null
+  },
+  "timestamp": "2026-03-31T10:30:00.000Z",
+  "model": "gpt-4o-mini",
+  "version": "1.1.0"
+}
 ```
 
 ### Language — get explanations in another language
@@ -73,6 +93,89 @@ Feed `oops` a full stack trace and it identifies the root cause, explains each f
 
 ### 🎓 New Developer Onboarding
 Junior developers can understand error messages independently, reducing interruptions for senior team members.
+
+### 🤖 CI/CD Integration
+Use `--json` mode to integrate error analysis into your continuous integration pipeline:
+
+**GitHub Actions Example:**
+```yaml
+name: Error Analysis
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run tests and capture errors
+        id: test
+        continue-on-error: true
+        run: npm test 2>&1 | tee error.log
+      
+      - name: Analyze errors with oops
+        if: failure()
+        run: |
+          npx oops-cli --file error.log --json > analysis.json
+          cat analysis.json
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      
+      - name: Post analysis to PR
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const analysis = JSON.parse(fs.readFileSync('analysis.json', 'utf8'));
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🔍 Error Analysis\n\n**Error:** ${analysis.error}\n\n**Explanation:** ${analysis.explanation}\n\n**Solution:** ${analysis.solution}`
+            });
+```
+
+**Jenkins Pipeline:**
+```groovy
+pipeline {
+  agent any
+  environment {
+    OPENAI_API_KEY = credentials('openai-api-key')
+  }
+  stages {
+    stage('Test') {
+      steps {
+        script {
+          try {
+            sh 'npm test'
+          } catch (Exception e) {
+            sh 'npm test 2>&1 | npx oops-cli --json > analysis.json'
+            def analysis = readJSON file: 'analysis.json'
+            echo "Error: ${analysis.error}"
+            echo "Solution: ${analysis.solution}"
+            error("Tests failed - see analysis above")
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**GitLab CI:**
+```yaml
+test:
+  script:
+    - npm test 2>&1 | tee error.log || true
+    - |
+      if [ -s error.log ]; then
+        npx oops-cli --file error.log --json > analysis.json
+        cat analysis.json
+      fi
+  artifacts:
+    paths:
+      - analysis.json
+    when: on_failure
+```
 
 ## How It Works
 
