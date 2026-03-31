@@ -33,7 +33,7 @@ npm install -g @muin/json-to-types \
                @muin/readme-gen \
                @muin/depcheck-lite \
                @muin/lockcheck \
-               @muin/cron-explain
+               @mj-muin/cronex
 ```
 
 Verify installation:

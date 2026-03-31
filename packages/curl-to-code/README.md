@@ -1260,7 +1260,7 @@ MIT © [MUIN](https://muin.company)
 ## Related Projects
 
 - [@muin/json-to-types](../json-to-types) - Convert JSON to TypeScript/Zod/Python types
-- [@muin/cron-explain](../cron-explain) - Understand and generate cron expressions
+- [@mj-muin/cronex](../cron-explain) - Understand and generate cron expressions
 - [More MUIN tools](https://muin.company/tools)
 
 ## Support

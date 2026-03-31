@@ -1351,7 +1351,7 @@ MIT © [MUIN](https://muin.company)
 ## Related Projects
 
 - [@muin/curl-to-code](../curl-to-code) - Convert curl commands to code in any language
-- [@muin/cron-explain](../cron-explain) - Understand and generate cron expressions
+- [@mj-muin/cronex](../cron-explain) - Understand and generate cron expressions
 - [More MUIN tools](https://muin.company/tools)
 
 ## Support

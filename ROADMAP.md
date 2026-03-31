@@ -29,7 +29,7 @@
 | 📝 readme-gen | `@muin/readme-gen` | Ready | v1.0.0 |
 | 🔍 depcheck-lite | `@muin/depcheck-lite` | Ready | v1.0.0 |
 | 🔒 lockcheck | `@muin/lockcheck` | Ready | v1.0.0 |
-| ⏰ cron-explain | `@muin/cron-explain` | Ready | v0.1.0 |
+| ⏰ cron-explain | `@mj-muin/cronex` | Ready | v0.1.0 |
 
 ### 인프라 현황
 - **Monorepo:** `packages/` 기반, 13개 패키지
@@ -46,7 +46,7 @@
 **Wave 1 (4월 1주)** — 고가치 도구 우선
 - [ ] `@muin/json-to-types` 배포 — JSON → 타입 변환은 수요 높음
 - [ ] `@muin/curl-to-code` 배포 — curl 관련 도구는 검색량 높음
-- [ ] `@muin/cron-explain` 배포 — 가볍고 제로 디펜던시, 바이럴 잠재력
+- [ ] `@mj-muin/cronex` 배포 — 가볍고 제로 디펜던시, 바이럴 잠재력
 
 **Wave 2 (4월 2주)** — DX 도구
 - [ ] `@muin/envdiff` 배포

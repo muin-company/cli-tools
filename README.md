@@ -17,7 +17,7 @@
 | 📝 [readme-gen](./packages/readme-gen) | Auto-generate README files | `npm i -g @muin/readme-gen` |
 | 🔍 [depcheck-lite](./packages/depcheck-lite) | Find unused/missing deps | `npm i -g @muin/depcheck-lite` |
 | 🔒 [lockcheck](./packages/lockcheck) | Validate lock file integrity | `npm i -g @muin/lockcheck` |
-| ⏰ [cron-explain](./packages/cron-explain) | Cron ↔ human-readable text | `npm i -g @muin/cron-explain` |
+| ⏰ [cron-explain](./packages/cron-explain) | Cron ↔ human-readable text | `npm i -g @mj-muin/cronex` |
 
 ---
 
@@ -218,7 +218,7 @@ lockcheck
 lockcheck --verify-integrity --security-only
 ```
 
-### [@muin/cron-explain](./packages/cron-explain)
+### [@mj-muin/cronex](./packages/cron-explain)
 
 Understand and generate cron expressions with natural language.
 
@@ -229,7 +229,7 @@ Understand and generate cron expressions with natural language.
 
 **Installation:**
 ```bash
-npm install -g @muin/cron-explain
+npm install -g @mj-muin/cronex
 ```
 
 **Usage:**

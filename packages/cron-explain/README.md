@@ -1,8 +1,8 @@
-# @muin/cron-explain
+# @mj-muin/cronex
 
-[![npm version](https://img.shields.io/npm/v/@muin/cron-explain.svg)](https://www.npmjs.com/package/@muin/cron-explain)
-[![npm downloads](https://img.shields.io/npm/dm/@muin/cron-explain.svg)](https://www.npmjs.com/package/@muin/cron-explain)
-[![license](https://img.shields.io/npm/l/@muin/cron-explain.svg)](https://github.com/muin-company/cli-tools/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@mj-muin/cronex.svg)](https://www.npmjs.com/package/@mj-muin/cronex)
+[![npm downloads](https://img.shields.io/npm/dm/@mj-muin/cronex.svg)](https://www.npmjs.com/package/@mj-muin/cronex)
+[![license](https://img.shields.io/npm/l/@mj-muin/cronex.svg)](https://github.com/muin-company/cli-tools/blob/main/LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/muin-company/cli-tools/blob/main/CONTRIBUTING.md)
 
 Finally understand and generate cron expressions in human language. Bidirectional conversion with visual preview.
@@ -24,19 +24,19 @@ You can install `cron-explain` globally using your preferred package manager:
 
 ```bash
 # npm
-npm install -g @muin/cron-explain
+npm install -g @mj-muin/cronex
 
 # yarn
-yarn global add @muin/cron-explain
+yarn global add @mj-muin/cronex
 
 # pnpm
-pnpm add -g @muin/cron-explain
+pnpm add -g @mj-muin/cronex
 ```
 
 Alternatively, you can run it instantly without installing using `npx`:
 
 ```bash
-npx @muin/cron-explain
+npx @mj-muin/cronex
 ```
 
 ## Quick Start
