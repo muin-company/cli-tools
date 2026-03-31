@@ -1,9 +1,9 @@
-# oops-cli
+# oops-explainer
 
 > AI-powered error message explainer — paste an error, get a human-readable explanation and fix suggestions.
 
-![npm version](https://img.shields.io/npm/v/oops-cli)
-![license](https://img.shields.io/npm/l/oops-cli)
+![npm version](https://img.shields.io/npm/v/oops-explainer)
+![license](https://img.shields.io/npm/l/oops-explainer)
 
 Stop staring at cryptic error messages. `oops` uses AI to explain what went wrong and how to fix it — right in your terminal.
 
@@ -11,10 +11,10 @@ Stop staring at cryptic error messages. `oops` uses AI to explain what went wron
 
 ```bash
 # Global install
-npm install -g oops-cli
+npm install -g oops-explainer
 
 # Or run directly with npx
-npx oops-cli "your error message here"
+npx oops-explainer "your error message here"
 ```
 
 ## Usage
@@ -114,7 +114,7 @@ jobs:
       - name: Analyze errors with oops
         if: failure()
         run: |
-          npx oops-cli --file error.log --json > analysis.json
+          npx oops-explainer --file error.log --json > analysis.json
           cat analysis.json
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -148,7 +148,7 @@ pipeline {
           try {
             sh 'npm test'
           } catch (Exception e) {
-            sh 'npm test 2>&1 | npx oops-cli --json > analysis.json'
+            sh 'npm test 2>&1 | npx oops-explainer --json > analysis.json'
             def analysis = readJSON file: 'analysis.json'
             echo "Error: ${analysis.error}"
             echo "Solution: ${analysis.solution}"
@@ -168,7 +168,7 @@ test:
     - npm test 2>&1 | tee error.log || true
     - |
       if [ -s error.log ]; then
-        npx oops-cli --file error.log --json > analysis.json
+        npx oops-explainer --file error.log --json > analysis.json
         cat analysis.json
       fi
   artifacts:
