@@ -11,6 +11,7 @@ The AI-powered linter that brutally roasts your code — hilariously harsh AI co
 [![npm downloads/month](https://img.shields.io/npm/dm/roast-cli.svg)](https://www.npmjs.com/package/roast-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/node/v/roast-cli.svg)](https://nodejs.org)
+[![Product Hunt](https://img.shields.io/badge/Product%20Hunt-Launch%20Soon-orange?logo=producthunt&logoColor=white)](https://www.producthunt.com/posts/roast-cli)
 
 <br/>
 
