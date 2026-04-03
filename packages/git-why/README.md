@@ -1,5 +1,7 @@
 <div align="center">
 
+<a href="https://www.producthunt.com/posts/git-why?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-git&#0045;why" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=git-why&theme=light" alt="git&#0045;why - Understand&#0032;git&#0032;commits&#0032;with&#0032;AI | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+
 # 🔍 git-why
 
 **Git blame tells you *who*. git-why tells you *WHY*.**
